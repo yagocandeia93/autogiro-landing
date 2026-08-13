@@ -1,0 +1,54 @@
+import type { VerifiedLead } from "@/lib/otpStore";
+import { currentGateway } from "@/lib/webhookSignature";
+
+const PLAN_PRICE_CENTS: Record<VerifiedLead["plan"], number> = {
+  BASICO: 29900,
+  PRO: 49900,
+};
+
+/**
+ * Cria a sessão de checkout no gateway escolhido e devolve a URL de
+ * pagamento pra onde o front-end redireciona depois do Muro 2. AINDA NÃO
+ * CHAMA NENHUM GATEWAY DE VERDADE — as chaves (Asaas ou Pagar.me) só saem
+ * sexta-feira. O que importa aqui é a forma: `email` vai como
+ * `external_reference`/metadata da cobrança, porque é isso que o webhook
+ * (app/api/webhooks/payment) usa pra achar de volta qual `verified-lead` no
+ * Redis foi pago.
+ *
+ * Quando o SDK entrar, o corpo desta função vira a chamada real — a
+ * assinatura (recebe o lead, devolve a URL) não muda.
+ */
+export async function createCheckoutLink(lead: VerifiedLead): Promise<string> {
+  const gateway = currentGateway();
+  const amountCents = PLAN_PRICE_CENTS[lead.plan];
+
+  if (gateway === "asaas") {
+    // TODO (sexta, com a chave do Asaas):
+    // const asaas = new AsaasClient(process.env.ASAAS_API_KEY!);
+    // const customer = await asaas.customers.create({ name: lead.nome, email: lead.email, phone: lead.whatsapp });
+    // const payment = await asaas.paymentLinks.create({
+    //   customer: customer.id,
+    //   billingType: "UNDEFINED", // deixa o cliente escolher PIX ou cartão
+    //   value: amountCents / 100,
+    //   externalReference: lead.email,
+    //   description: `AutoGiro DMS — plano ${lead.plan}`,
+    // });
+    // return payment.url;
+  } else {
+    // TODO (sexta, com a chave do Pagar.me):
+    // const pagarme = new PagarmeClient(process.env.PAGARME_API_KEY!);
+    // const order = await pagarme.orders.create({
+    //   items: [{ amount: amountCents, description: `AutoGiro DMS — plano ${lead.plan}`, quantity: 1 }],
+    //   customer: { name: lead.nome, email: lead.email, phones: { mobile_phone: lead.whatsapp } },
+    //   metadata: { external_reference: lead.email },
+    //   payments: [{ payment_method: "checkout", checkout: { accepted_payment_methods: ["credit_card", "pix"] } }],
+    // });
+    // return order.checkouts[0].payment_url;
+  }
+
+  // Placeholder até as chaves existirem: manda pra página de checkout local
+  // (app/checkout), que hoje só explica que o pagamento ainda não está
+  // ligado — em vez de quebrar o fluxo de ponta a ponta.
+  const params = new URLSearchParams({ email: lead.email, plano: lead.plan });
+  return `/checkout?${params.toString()}`;
+}
