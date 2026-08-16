@@ -27,7 +27,12 @@ const PLAN_LABEL: Record<Plan, string> = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function SignupForm({ plan }: { plan: Plan }) {
+/**
+ * `demo` marca quem chegou pelos CTAs de "Agendar demonstração" em vez dos
+ * botões de plano: o cabeçalho para de anunciar um plano que a pessoa não
+ * escolheu, e a origem viaja até o aviso de lead novo da equipe.
+ */
+export function SignupForm({ plan, demo = false }: { plan: Plan; demo?: boolean }) {
   const [stage, setStage] = useState<Stage>("form");
   const [doneMessage, setDoneMessage] = useState("");
 
@@ -89,6 +94,7 @@ export function SignupForm({ plan }: { plan: Plan }) {
           email: email.trim(),
           whatsapp,
           plan,
+          origem: demo ? "demonstracao" : "plano",
           turnstileToken: token,
         }),
       });
@@ -259,10 +265,12 @@ export function SignupForm({ plan }: { plan: Plan }) {
   return (
     <form onSubmit={handleSubmit} noValidate style={formStyle}>
       <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600, color: "#f5a524", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        Plano {PLAN_LABEL[plan]}
+        {demo ? "Demonstração gratuita" : `Plano ${PLAN_LABEL[plan]}`}
       </p>
       <p style={{ margin: "0 0 20px", fontSize: 15, fontWeight: 600 }}>
-        Só mais um passo pra começar.
+        {demo
+          ? "Deixe seus dados que um consultor entra em contato."
+          : "Só mais um passo pra começar."}
       </p>
 
       <Field label="Nome" error={errors.nome}>

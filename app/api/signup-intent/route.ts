@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSignupRateLimiter, clientIp } from "@/lib/rateLimit";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { generateOtp, savePendingLead } from "@/lib/otpStore";
-import { sendOtpEmail } from "@/lib/resend";
+import { sendOtpEmail, notifyNewLead } from "@/lib/resend";
 
 // Rota de "intenção de cadastro" — Muro 3 (anti-abuso) + Muro 2 (OTP por
 // e-mail) isolados do Muro 1 (gateway de pagamento), que ainda não existe.
@@ -15,6 +15,8 @@ interface SignupIntentBody {
   email?: string;
   whatsapp?: string;
   plan?: "BASICO" | "PRO";
+  /** De onde o lead veio na landing: CTA de demonstração ou botão de plano. */
+  origem?: string;
   turnstileToken?: string;
 }
 
@@ -124,6 +126,22 @@ export async function POST(req: NextRequest) {
       { status: 502 }
     );
   }
+
+  // Lead válido e a caminho do OTP: avisa a equipe agora, não depois do
+  // código confirmado. Quem desiste na tela do OTP é justamente o lead que
+  // vale uma ligação, e sem este aviso ele sumia junto com o TTL do Redis.
+  // `notifyNewLead` não lança — o cadastro não pode falhar por causa do
+  // e-mail interno —, mas o await garante que o envio termine antes da
+  // função serverless ser congelada.
+  await notifyNewLead({
+    nome,
+    email,
+    whatsapp,
+    plan: body.plan,
+    // Só "demonstracao" é tratado como pedido de demo; qualquer outro valor
+    // (inclusive ausente ou forjado) cai no caminho de escolha de plano.
+    origem: body.origem === "demonstracao" ? "demonstracao" : "plano",
+  });
 
   // TODO (Muro 1 — gateway de cobrança): entra depois que /api/verify-otp
   // confirmar o código, não aqui.
