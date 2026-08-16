@@ -9,11 +9,24 @@ import { sendOtpEmail, notifyNewLead } from "@/lib/resend";
 // Passa daqui pra "sala de espera" no Redis (lib/otpStore.ts): nome, e-mail,
 // WhatsApp, plano e o OTP ficam guardados por 15 min. NÃO cria tenant nem
 // cobra ninguém — ver README.md para o que falta.
+//
+// A rota atende DOIS fluxos, que dividem o Muro 3 mas divergem depois:
+//
+//   origem=plano         → botões de assinatura, vindos de /inscricao.
+//                          Segue o caminho completo: OTP + sala de espera.
+//   origem=demonstracao  → modal de "Agendar demonstração" da landing.
+//                          Só pede retorno de um consultor, então NÃO gera
+//                          OTP: mandar "seu código de verificação" para quem
+//                          pediu uma ligação é confuso, e não há cadastro para
+//                          confirmar. O aviso para a equipe é o entregável, e
+//                          é ele que virou o registro durável desse lead.
 
 interface SignupIntentBody {
   nome?: string;
   email?: string;
   whatsapp?: string;
+  /** Nome da loja — obrigatório no fluxo de demonstração. */
+  loja?: string;
   plan?: "BASICO" | "PRO";
   /** De onde o lead veio na landing: CTA de demonstração ou botão de plano. */
   origem?: string;
@@ -25,6 +38,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function isValidBRPhone(value: string): boolean {
   const digits = value.replace(/\D/g, "");
   return digits.length === 10 || digits.length === 11;
+}
+
+function parsePlan(value: unknown): "BASICO" | "PRO" | null {
+  return value === "BASICO" || value === "PRO" ? value : null;
 }
 
 export async function POST(req: NextRequest) {
@@ -68,17 +85,27 @@ export async function POST(req: NextRequest) {
   const nome = body.nome?.trim() ?? "";
   const email = body.email?.trim() ?? "";
   const whatsapp = body.whatsapp ?? "";
+  const loja = body.loja?.trim() ?? "";
+  // Só "demonstracao" abre o caminho curto; qualquer outro valor (ausente ou
+  // forjado) cai no fluxo de plano, que é o mais restritivo dos dois.
+  const isDemo = body.origem === "demonstracao";
 
-  if (
-    nome.length < 2 ||
-    !EMAIL_RE.test(email) ||
-    !isValidBRPhone(whatsapp) ||
-    (body.plan !== "BASICO" && body.plan !== "PRO")
-  ) {
+  const plan = parsePlan(body.plan);
+  const camposBase =
+    nome.length >= 2 && EMAIL_RE.test(email) && isValidBRPhone(whatsapp);
+  // Demonstração exige a loja e ignora plano; assinatura exige plano e aceita
+  // loja como opcional (o formulário de /inscricao ainda não pergunta isso).
+  const camposOk = isDemo
+    ? camposBase && loja.length >= 2
+    : camposBase && plan !== null;
+
+  if (!camposOk) {
     return NextResponse.json(
       {
         error: "missing_fields",
-        message: "Confira nome, e-mail, WhatsApp e plano antes de continuar.",
+        message: isDemo
+          ? "Confira nome, e-mail, WhatsApp e o nome da loja antes de continuar."
+          : "Confira nome, e-mail, WhatsApp e plano antes de continuar.",
       },
       { status: 400 }
     );
@@ -96,6 +123,54 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ── Fluxo de demonstração: termina aqui ────────────────────────────────
+  // Sem OTP e sem sala de espera. Não existe cadastro para confirmar, então o
+  // aviso para a equipe é o único e o mais importante efeito da requisição —
+  // por isso, e só aqui, uma falha nele vira erro para quem enviou: se
+  // ninguém foi avisado, o pedido de demonstração simplesmente não existe.
+  if (isDemo) {
+    const avisado = await notifyNewLead({
+      nome,
+      email,
+      whatsapp,
+      loja,
+      origem: "demonstracao",
+    });
+
+    if (!avisado) {
+      return NextResponse.json(
+        {
+          error: "notify_failed",
+          message:
+            "Não conseguimos registrar seu pedido agora. Tente novamente em instantes ou fale com a gente no WhatsApp.",
+        },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      stage: "received",
+      remaining,
+      message: "Pedido recebido! Um consultor entra em contato em até 1 dia útil.",
+    });
+  }
+
+  // ── Fluxo de assinatura: segue para o Muro 2 ───────────────────────────
+  if (!plan) {
+    // Inalcançável: `camposOk` acima já rejeitou plano inválido fora do fluxo
+    // de demonstração. O guard existe porque o TypeScript não acompanha uma
+    // validação feita através de variável booleana, e é melhor reafirmar aqui
+    // do que assertar o tipo à força.
+    return NextResponse.json(
+      {
+        error: "missing_fields",
+        message: "Confira nome, e-mail, WhatsApp e plano antes de continuar.",
+      },
+      { status: 400 }
+    );
+  }
+
   // Venceu os Muros 3 (Turnstile + rate limit) e os campos batem — abre o
   // Muro 2: gera o OTP, guarda o lead na sala de espera por 15 min, dispara
   // o e-mail. Se o Resend falhar, o lead FICA salvo (não se perde o dado só
@@ -107,7 +182,7 @@ export async function POST(req: NextRequest) {
     nome,
     email,
     whatsapp,
-    plan: body.plan,
+    plan,
     otp,
     attempts: 0,
     createdAt: Date.now(),
@@ -137,10 +212,9 @@ export async function POST(req: NextRequest) {
     nome,
     email,
     whatsapp,
-    plan: body.plan,
-    // Só "demonstracao" é tratado como pedido de demo; qualquer outro valor
-    // (inclusive ausente ou forjado) cai no caminho de escolha de plano.
-    origem: body.origem === "demonstracao" ? "demonstracao" : "plano",
+    loja: loja || undefined,
+    plan,
+    origem: "plano",
   });
 
   // TODO (Muro 1 — gateway de cobrança): entra depois que /api/verify-otp

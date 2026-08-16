@@ -97,11 +97,13 @@ export interface NewLeadNotice {
   nome: string;
   email: string;
   whatsapp: string;
-  plan: "BASICO" | "PRO";
+  /** Nome da loja. Sempre presente no fluxo de demonstração. */
+  loja?: string;
+  /** Ausente no fluxo de demonstração, onde ninguém escolheu plano. */
+  plan?: "BASICO" | "PRO";
   /**
-   * "demonstracao" = veio de um CTA de "Agendar demonstração" e não escolheu
-   * plano (o formulário assume Básico por padrão, então o plano abaixo não
-   * quer dizer nada nesse caso). "plano" = clicou em Assinar/Começar agora.
+   * "demonstracao" = veio do modal de "Agendar demonstração" da landing e não
+   * escolheu plano. "plano" = clicou em Assinar/Começar agora.
    */
   origem?: "demonstracao" | "plano";
 }
@@ -130,6 +132,10 @@ function newLeadEmailHtml(lead: NewLeadNotice): string {
   const isDemo = lead.origem === "demonstracao";
   const planoTexto = lead.plan === "PRO" ? "Pro (R$ 499/mês)" : "Básico (R$ 299/mês)";
 
+  const linhaLoja = lead.loja
+    ? linha("Loja", escapeHtml(lead.loja))
+    : "";
+
   return `
   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0e14; padding: 32px; color: #e9edf3;">
     <div style="max-width: 480px; margin: 0 auto; background: #111823; border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 32px;">
@@ -138,10 +144,15 @@ function newLeadEmailHtml(lead: NewLeadNotice): string {
         isDemo ? "Pedido de demonstração" : "Lead novo no site"
       }</h1>
       <p style="margin: 0 0 22px; font-size: 14px; line-height: 1.6; color: #94a1b5;">
-        Passou pelo Turnstile e pelo rate limit, e recebeu o código de verificação por e-mail. Ainda não confirmou o código.
+        ${
+          isDemo
+            ? "Preencheu o formulário de demonstração na landing e passou pelo Turnstile e pelo rate limit. Está esperando o contato de um consultor."
+            : "Passou pelo Turnstile e pelo rate limit, e recebeu o código de verificação por e-mail. Ainda não confirmou o código."
+        }
       </p>
       <table style="width: 100%; border-collapse: collapse; margin: 0 0 24px;">
         ${linha("Nome", escapeHtml(lead.nome))}
+        ${linhaLoja}
         ${linha("E-mail", escapeHtml(lead.email))}
         ${linha("WhatsApp", escapeHtml(lead.whatsapp))}
         ${linha(
@@ -155,29 +166,43 @@ function newLeadEmailHtml(lead: NewLeadNotice): string {
         Falar com o lead no WhatsApp
       </a>
       <p style="margin: 20px 0 0; font-size: 12px; line-height: 1.6; color: #7c8899;">
-        O registro fica na sala de espera do Redis por 15 minutos. Depois disso, só este e-mail resta como rastro do contato.
+        ${
+          isDemo
+            ? "Este e-mail é o único registro do pedido — o fluxo de demonstração não grava nada no banco."
+            : "O registro fica na sala de espera do Redis por 15 minutos. Depois disso, só este e-mail resta como rastro do contato."
+        }
       </p>
     </div>
   </div>`;
 }
 
 /**
- * Avisa a equipe que entrou um lead novo. Nunca lança: o disparo é
- * complementar ao fluxo do visitante, então uma falha aqui é registrada no log
- * e engolida — derrubar a resposta faria a pessoa perder o cadastro por um
- * problema que é só nosso.
+ * Avisa a equipe que entrou um lead novo. Nunca lança — quem chama decide o
+ * que fazer com a falha pelo retorno:
+ *
+ * - fluxo de assinatura ignora o retorno, porque o lead já está salvo no Redis
+ *   e o visitante tem o OTP para seguir: derrubar a resposta por causa de um
+ *   e-mail interno faria a pessoa perder o cadastro por um problema nosso;
+ * - fluxo de demonstração checa o retorno, porque este e-mail é o único
+ *   registro do pedido — sem ele, o lead não existe em lugar nenhum.
+ *
+ * Retorna `true` quando o aviso foi entregue (ou deliberadamente impresso no
+ * console em dev, que é a entrega esperada ali) e `false` em falha real.
  */
-export async function notifyNewLead(lead: NewLeadNotice): Promise<void> {
+export async function notifyNewLead(lead: NewLeadNotice): Promise<boolean> {
   try {
     const resend = getClient();
     const to = process.env.LEAD_NOTIFICATION_EMAIL || DEFAULT_LEAD_INBOX;
 
     if (!resend) {
+      // Dev sem RESEND_API_KEY (em produção getClient lança): imprimir no
+      // console É a entrega aqui, então conta como sucesso — senão o modal de
+      // demonstração ficaria impossível de testar localmente.
       console.warn(
-        `[resend] RESEND_API_KEY não configurada — lead novo (${lead.email}, ` +
-          `plano ${lead.plan}) não notificado para ${to}.`
+        `[resend] RESEND_API_KEY não configurada — lead novo não enviado para ` +
+          `${to}. Conteúdo: ${JSON.stringify(lead)}`
       );
-      return;
+      return true;
     }
 
     const from = process.env.RESEND_FROM_EMAIL;
@@ -185,7 +210,7 @@ export async function notifyNewLead(lead: NewLeadNotice): Promise<void> {
       console.error(
         "[resend] RESEND_FROM_EMAIL ausente — lead novo não notificado."
       );
-      return;
+      return false;
     }
 
     const { error } = await resend.emails.send({
@@ -194,7 +219,7 @@ export async function notifyNewLead(lead: NewLeadNotice): Promise<void> {
       replyTo: lead.email,
       subject:
         lead.origem === "demonstracao"
-          ? `Pedido de demonstração: ${lead.nome}`
+          ? `Pedido de demonstração: ${lead.nome}${lead.loja ? ` — ${lead.loja}` : ""}`
           : `Lead novo: ${lead.nome} — plano ${lead.plan}`,
       html: newLeadEmailHtml(lead),
     });
@@ -203,8 +228,12 @@ export async function notifyNewLead(lead: NewLeadNotice): Promise<void> {
       console.error(
         `[resend] falha ao notificar lead novo (${lead.email}): ${error.message}`
       );
+      return false;
     }
+
+    return true;
   } catch (err) {
     console.error("[resend] erro inesperado ao notificar lead novo:", err);
+    return false;
   }
 }

@@ -15,10 +15,11 @@ export async function verifyTurnstileToken(
   token: string | undefined | null,
   remoteIp: string
 ): Promise<TurnstileVerifyResult> {
-  if (!token) {
-    return { ok: false, errorCodes: ["missing-token"] };
-  }
-
+  // A secret é checada ANTES do token de propósito. Em dev sem Turnstile
+  // configurado, o widget não renderiza e portanto não existe token nenhum
+  // para enviar — checar o token primeiro tornaria o formulário impossível de
+  // testar localmente. Em produção isso não afrouxa nada: sem a secret a
+  // função lança, então o caminho abaixo sempre exige token e verificação real.
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
@@ -28,9 +29,13 @@ export async function verifyTurnstileToken(
       );
     }
     console.warn(
-      "[turnstile] TURNSTILE_SECRET_KEY não configurada — aceitando qualquer token em dev."
+      "[turnstile] TURNSTILE_SECRET_KEY não configurada — aceitando qualquer requisição em dev."
     );
     return { ok: true };
+  }
+
+  if (!token) {
+    return { ok: false, errorCodes: ["missing-token"] };
   }
 
   const body = new URLSearchParams();
