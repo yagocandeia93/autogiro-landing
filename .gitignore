@@ -3,3 +3,7 @@ node_modules
 .env
 .env*.local
 *.bak
+
+# Gerados pelo Next/TS a cada build
+next-env.d.ts
+tsconfig.tsbuildinfo

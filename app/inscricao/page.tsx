@@ -7,6 +7,17 @@ function parsePlan(value: string | string[] | undefined): Plan {
   return v === "PRO" ? "PRO" : "BASICO";
 }
 
+/**
+ * Os CTAs de "Agendar demonstração" da landing chegam com
+ * `?origem=demonstracao` e sem plano. Sem essa distinção o `parsePlan` acima
+ * assumiria BASICO em silêncio, e o lead apareceria para a equipe como se
+ * tivesse escolhido um plano que ele nunca viu.
+ */
+function isDemoOrigin(value: string | string[] | undefined): boolean {
+  const v = Array.isArray(value) ? value[0] : value;
+  return v === "demonstracao";
+}
+
 export default async function InscricaoPage({
   searchParams,
 }: {
@@ -14,6 +25,7 @@ export default async function InscricaoPage({
 }) {
   const params = await searchParams;
   const plan = parsePlan(params.plano);
+  const demo = isDemoOrigin(params.origem);
 
   return (
     <main
@@ -26,7 +38,7 @@ export default async function InscricaoPage({
         padding: 24,
       }}
     >
-      <SignupForm plan={plan} />
+      <SignupForm plan={plan} demo={demo} />
     </main>
   );
 }
