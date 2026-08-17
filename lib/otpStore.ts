@@ -10,6 +10,8 @@ export interface PendingLead {
   nome: string;
   email: string;
   whatsapp: string;
+  /** Nome da loja — agora obrigatório nos dois funis (modal e /inscricao). */
+  loja: string;
   plan: "BASICO" | "PRO";
   otp: string;
   attempts: number;
@@ -20,12 +22,21 @@ export interface VerifiedLead {
   nome: string;
   email: string;
   whatsapp: string;
+  loja: string;
   plan: "BASICO" | "PRO";
   verifiedAt: number;
 }
 
 const OTP_TTL_SECONDS = 15 * 60;
-const VERIFIED_TTL_SECONDS = 30 * 60;
+
+/**
+ * 24 h, e não os 30 min originais. A janela precisa cobrir o tempo real entre
+ * verificar o e-mail e o pagamento cair: PIX gerado à noite costuma ser pago na
+ * manhã seguinte, e cartão recusado quase sempre tem nova tentativa manual
+ * horas depois. Com 30 min, o webhook de pagamento chegava sem achar o
+ * `verified-lead` e a pessoa **que já tinha pago** era descartada em silêncio.
+ */
+const VERIFIED_TTL_SECONDS = 24 * 60 * 60;
 
 function otpKey(email: string) {
   return `autogiro-landing:signup-otp:${email.toLowerCase()}`;
@@ -64,8 +75,28 @@ function getRedis(): Redis | null {
 
 // Fallback local: Map com expiração checada na leitura (sem setTimeout, pra
 // não vazar timers vivos entre requisições serverless).
-const memPending = new Map<string, { value: PendingLead; expiresAt: number }>();
-const memVerified = new Map<string, { value: VerifiedLead; expiresAt: number }>();
+//
+// Preso ao `globalThis`, não ao módulo: em dev o Next compila cada rota em um
+// bundle próprio, então `signup-intent` e `verify-otp` teriam cada uma a SUA
+// sala de espera e o fluxo de OTP ficaria impossível de testar sem Upstash —
+// o código enviado por uma rota nunca seria encontrado pela outra. Também
+// sobrevive ao hot reload. Em produção nada disso é usado: lá o Redis é
+// obrigatório (getRedis lança sem as variáveis).
+interface MemStore {
+  pending: Map<string, { value: PendingLead; expiresAt: number }>;
+  verified: Map<string, { value: VerifiedLead; expiresAt: number }>;
+  processedEvents: Map<string, number>;
+}
+
+const globalForMem = globalThis as typeof globalThis & {
+  __autogiroMemStore?: MemStore;
+};
+
+const mem: MemStore = (globalForMem.__autogiroMemStore ??= {
+  pending: new Map(),
+  verified: new Map(),
+  processedEvents: new Map(),
+});
 
 export async function savePendingLead(lead: PendingLead): Promise<void> {
   const redis = getRedis();
@@ -73,7 +104,7 @@ export async function savePendingLead(lead: PendingLead): Promise<void> {
   if (redis) {
     await redis.set(key, lead, { ex: OTP_TTL_SECONDS });
   } else {
-    memPending.set(key, {
+    mem.pending.set(key, {
       value: lead,
       expiresAt: Date.now() + OTP_TTL_SECONDS * 1000,
     });
@@ -86,9 +117,9 @@ export async function getPendingLead(email: string): Promise<PendingLead | null>
   if (redis) {
     return (await redis.get<PendingLead>(key)) ?? null;
   }
-  const entry = memPending.get(key);
+  const entry = mem.pending.get(key);
   if (!entry || entry.expiresAt < Date.now()) {
-    memPending.delete(key);
+    mem.pending.delete(key);
     return null;
   }
   return entry.value;
@@ -103,8 +134,8 @@ export async function incrementPendingAttempts(email: string, lead: PendingLead)
     const ttl = await redis.ttl(key);
     await redis.set(key, updated, { ex: ttl > 0 ? ttl : OTP_TTL_SECONDS });
   } else {
-    const entry = memPending.get(key);
-    memPending.set(key, {
+    const entry = mem.pending.get(key);
+    mem.pending.set(key, {
       value: updated,
       expiresAt: entry?.expiresAt ?? Date.now() + OTP_TTL_SECONDS * 1000,
     });
@@ -117,7 +148,7 @@ export async function deletePendingLead(email: string): Promise<void> {
   if (redis) {
     await redis.del(key);
   } else {
-    memPending.delete(key);
+    mem.pending.delete(key);
   }
 }
 
@@ -127,7 +158,7 @@ export async function saveVerifiedLead(lead: VerifiedLead): Promise<void> {
   if (redis) {
     await redis.set(key, lead, { ex: VERIFIED_TTL_SECONDS });
   } else {
-    memVerified.set(key, {
+    mem.verified.set(key, {
       value: lead,
       expiresAt: Date.now() + VERIFIED_TTL_SECONDS * 1000,
     });
@@ -137,7 +168,7 @@ export async function saveVerifiedLead(lead: VerifiedLead): Promise<void> {
 /**
  * Lido pelo webhook do gateway (Muro 1) para recuperar quem pagou — a
  * checkout stub usa o e-mail como `external_reference`, então o webhook
- * consulta por e-mail de volta. Se o registro já expirou (>30 min desde a
+ * consulta por e-mail de volta. Se o registro já expirou (>24 h desde a
  * verificação do OTP sem completar o pagamento), o webhook não tem pra
  * quem provisionar e precisa tratar isso explicitamente.
  */
@@ -147,16 +178,15 @@ export async function getVerifiedLead(email: string): Promise<VerifiedLead | nul
   if (redis) {
     return (await redis.get<VerifiedLead>(key)) ?? null;
   }
-  const entry = memVerified.get(key);
+  const entry = mem.verified.get(key);
   if (!entry || entry.expiresAt < Date.now()) {
-    memVerified.delete(key);
+    mem.verified.delete(key);
     return null;
   }
   return entry.value;
 }
 
 const PROCESSED_EVENT_TTL_SECONDS = 24 * 60 * 60;
-const memProcessedEvents = new Map<string, number>();
 
 function processedEventKey(eventId: string) {
   return `autogiro-landing:webhook-processed:${eventId}`;
@@ -181,8 +211,8 @@ export async function claimWebhookEvent(eventId: string): Promise<boolean> {
     });
     return result === "OK";
   }
-  if (memProcessedEvents.has(key)) return false;
-  memProcessedEvents.set(key, Date.now());
+  if (mem.processedEvents.has(key)) return false;
+  mem.processedEvents.set(key, Date.now());
   return true;
 }
 

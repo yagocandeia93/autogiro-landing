@@ -7,7 +7,7 @@ import { maskBRPhone, isValidBRPhone } from "@/lib/phoneMask";
 type Plan = "BASICO" | "PRO";
 type Stage = "form" | "otp" | "done";
 
-type FieldErrors = Partial<Record<"nome" | "email" | "whatsapp", string>>;
+type FieldErrors = Partial<Record<"nome" | "email" | "whatsapp" | "loja", string>>;
 
 type FormStatus =
   | { kind: "idle" }
@@ -40,6 +40,9 @@ export function SignupForm({ plan, demo = false }: { plan: Plan; demo?: boolean 
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  // O modal da landing já pedia a loja; aqui o campo faltava, e o mesmo lead
+  // chegava à equipe com informação diferente conforme a porta de entrada.
+  const [loja, setLoja] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<FormStatus>({ kind: "idle" });
@@ -58,6 +61,9 @@ export function SignupForm({ plan, demo = false }: { plan: Plan; demo?: boolean 
     }
     if (!isValidBRPhone(whatsapp)) {
       next.whatsapp = "Informe um WhatsApp válido, com DDD.";
+    }
+    if (loja.trim().length < 2) {
+      next.loja = "Informe o nome da sua loja.";
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -93,6 +99,7 @@ export function SignupForm({ plan, demo = false }: { plan: Plan; demo?: boolean 
           nome: nome.trim(),
           email: email.trim(),
           whatsapp,
+          loja: loja.trim(),
           plan,
           origem: demo ? "demonstracao" : "plano",
           turnstileToken: token,
@@ -302,6 +309,17 @@ export function SignupForm({ plan, demo = false }: { plan: Plan; demo?: boolean 
           value={whatsapp}
           onChange={(e) => setWhatsapp(maskBRPhone(e.target.value))}
           placeholder="(00) 00000-0000"
+          style={inputStyle}
+          disabled={isBusy}
+        />
+      </Field>
+
+      <Field label="Nome da loja" error={errors.loja}>
+        <input
+          type="text"
+          value={loja}
+          onChange={(e) => setLoja(e.target.value)}
+          placeholder="Ex.: Yan Veículos"
           style={inputStyle}
           disabled={isBusy}
         />

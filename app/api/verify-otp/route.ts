@@ -7,6 +7,7 @@ import {
   saveVerifiedLead,
 } from "@/lib/otpStore";
 import { createCheckoutLink } from "@/lib/checkout";
+import { notifyVerifiedLead } from "@/lib/resend";
 
 interface VerifyOtpBody {
   email?: string;
@@ -103,16 +104,35 @@ export async function POST(req: NextRequest) {
   }
 
   // Bateu. O lead "vence" o Muro 2: sai da sala de espera do OTP e vira um
-  // lead verificado (TTL 30 min), pronto para o Muro 1 (checkout).
+  // lead verificado (TTL 24 h), pronto para o Muro 1 (checkout).
   await deletePendingLead(email);
   const verifiedLead = {
     nome: lead.nome,
     email: lead.email,
     whatsapp: lead.whatsapp,
+    // `?? ""` cobre os leads que entraram na sala de espera antes de a loja
+    // virar campo obrigatório — dura no máximo os 15 min de TTL do OTP, mas
+    // durante essa janela o registro antigo não tem o campo.
+    loja: lead.loja ?? "",
     plan: lead.plan,
     verifiedAt: Date.now(),
   };
   await saveVerifiedLead(verifiedLead);
+
+  // Segundo aviso para a equipe. O primeiro (em /api/signup-intent) sai para
+  // todo mundo que começa; este distingue quem chegou até o fim da verificação
+  // — o lead que vale a ligação imediata. O retorno é ignorado de propósito: o
+  // `verified-lead` já está no Redis e a pessoa precisa da URL de checkout
+  // abaixo. O `await` existe para o envio terminar antes de a função
+  // serverless congelar, não para poder falhar a requisição.
+  await notifyVerifiedLead({
+    nome: verifiedLead.nome,
+    email: verifiedLead.email,
+    whatsapp: verifiedLead.whatsapp,
+    loja: verifiedLead.loja || undefined,
+    plan: verifiedLead.plan,
+    origem: "plano",
+  });
 
   const checkoutUrl = await createCheckoutLink(verifiedLead);
 

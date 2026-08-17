@@ -1,0 +1,36 @@
+name: CI
+
+# Até aqui o único portão antes de produção era a integração Vercel↔GitHub, que
+# constrói DEPOIS do merge. Este workflow roda as mesmas verificações antes,
+# no PR, para que código que nem compila não chegue à main.
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Lint, types e build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `npm ci` (e não `npm install`) — instala exatamente o package-lock.json
+      # e falha se ele estiver dessincronizado do package.json.
+      - run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Checagem de tipos
+        run: npx tsc --noEmit
+
+      # O build não precisa das variáveis de ambiente reais: nenhuma rota de API
+      # é executada aqui, e as libs só leem `process.env` dentro das funções.
+      - name: Build do Next
+        run: npm run build
