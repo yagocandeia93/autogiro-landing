@@ -6,16 +6,28 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
 
 ## O que existe hoje
 
-- `public/index.html` — o design da landing, feito no Claude Design e
-  exportado como bundle estático (HTML único, fontes e imagens embutidas em
-  base64). Servido tal como está; `app/page.tsx` só redireciona `/` pra ele.
-  Os dois botões da seção de planos ("Assinar agora" no Básico, "Começar
-  agora" no Pro) foram editados dentro desse bundle — só o `href` e o texto,
-  nada da lógica/estilo — pra apontar para `/inscricao?plano=BASICO` e
-  `/inscricao?plano=PRO`. Os outros CTAs "Agendar demonstração" (calculadora
-  de estoque parado, CTA final, menu) foram deixados como estavam: são um
-  fluxo diferente (agendar ligação), que já funciona pelo motor de template
-  próprio do bundle (`sc-if`/`sc-camel-on-submit`) e não foi tocado.
+- **A landing, dividida em duas partes** (migração de 17/08 — docs/STATUS.md,
+  itens 10 e 11):
+  - `app/page.tsx` + `components/landing/{Header,Hero,Pricing}.tsx` —
+    Cabeçalho e Hero (a dobra acima) são componentes React reais, SSR'd pelo
+    Next. O HTML que chega no primeiro byte já tem a headline, o subtítulo e
+    o CTA — sem esperar JavaScript rodar. `Pricing` também virou componente
+    de verdade e é reaproveitado em `/inscricao`.
+  - `public/legacy-content.html` + `public/legacy-mount.js` — o restante
+    (Calculadora, Estoque, CRM, Portais, Planos na própria landing, Legal,
+    Footer) continua vindo do bundle estático exportado pelo Claude Design
+    (fontes e imagens embutidas em base64, exceto as fontes — ver item 12).
+    `legacy-mount.js` busca esse arquivo em runtime e monta o conteúdo dentro
+    de `#ag-legacy-root`, logo depois do Hero. A Calculadora tem estado
+    reativo (React montado sobre um único nó `<x-dc>` que re-renderiza a
+    própria subárvore inteira a cada slider) — por isso ela, Planos e o
+    resto não puderam seguir o mesmo caminho do Cabeçalho/Hero sem arriscar
+    quebrar essa reatividade. Antes de tentar migrar mais alguma seção,
+    leia o comentário grande no topo de `legacy-mount.js`.
+  - Os botões da seção de Planos (`href="/inscricao?plano=…"`) e os CTAs
+    "Agendar demonstração" (`data-ag-demo`, abrindo o modal de
+    `public/demo-modal.js`) existem nas duas partes — o contrato é o mesmo
+    atributo/href dos dois lados, não uma lógica duplicada.
 - `app/api/signup-intent` — **Muro 3 (Defesa Anti-Abuso)**: rate limit (3
   tentativas / 10 min / IP, via Upstash Redis) + verificação server-side do
   Cloudflare Turnstile + validação de nome/e-mail/WhatsApp. Não cria loja nem
