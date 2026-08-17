@@ -2,7 +2,7 @@
 
 **Repositório:** `yagocandeia93/autogiro-landing`
 **Produção:** `autogirodms.com.br` (Vercel) — separado do app principal `app.autogirodms.com.br` (Railway)
-**Data:** 16 de agosto de 2026
+**Data:** 16 de agosto de 2026 — *atualizado em 17 de agosto de 2026 (seção 6)*
 **Referência:** atualiza o documento *Análise Técnica e Comercial — Landing Page AutoGiro DMS*
 
 ---
@@ -22,6 +22,8 @@ Dos 6 gargalos apontados na análise original, **4 foram resolvidos**, 1 foi par
 | — | *(não previsto)* Deploy não construía o Next | ✅ Resolvido |
 
 **Entregue em:** PR #1, mergeada em `main` (`ea18c98`), com 4 commits — `5a43d38`, `e7e8f48`, `b041218`, `76dae4e`.
+
+**Sprint seguinte (17/08), PR #3 (`a4d70c4`):** fechou os itens **4 a 9** da seção 6 — segundo aviso de lead em `/api/verify-otp`, TTL do `verified-lead` de 30 min para 24 h, "Nome da loja" obrigatório também em `/inscricao`, `robots.txt` e `sitemap.xml`, `npm run lint` funcionando e CI em Pull Requests. Detalhe de cada um em [Resolvidos](#-resolvidos--17-de-agosto-de-2026).
 
 ---
 
@@ -153,13 +155,15 @@ Isso prova as duas coisas que não eram verificáveis por fora: que a `TURNSTILE
 
 ### 5.4 Limitações do que foi testado
 
-- **Nenhum teste automatizado ficou no repositório.** A suíte Playwright rodou fora do projeto, para não adicionar dependências não pedidas. Não há CI: uma regressão no modal não será detectada automaticamente.
+- **Nenhum teste automatizado ficou no repositório.** A suíte Playwright rodou fora do projeto, para não adicionar dependências não pedidas. *(Atualização de 17/08: já existe CI — `.github/workflows/ci.yml` roda lint, `tsc` e build a cada PR. Mas ela não substitui o que falta aqui: sem testes versionados, uma regressão de comportamento no modal continua passando batido.)*
 - **O e-mail foi validado em um cliente (Gmail).** Outros clientes renderizam HTML de e-mail de forma diferente.
 - **Um único envio real** validou o caminho de sucesso; não houve teste de carga.
 
 ---
 
 ## 6. O que falta
+
+> **Atualização de 17/08:** os itens **4 a 9** — toda a faixa de prioridade média, mais as duas primeiras dívidas técnicas — foram resolvidos no commit `a4d70c4` (PR #3). Saíram das listas abaixo e estão registrados em [Resolvidos](#-resolvidos--17-de-agosto-de-2026), no fim da seção. A numeração original foi mantida para não quebrar a referência com a versão anterior deste documento.
 
 ### Prioridade alta — destrava receita
 
@@ -169,19 +173,27 @@ Isso prova as duas coisas que não eram verificáveis por fora: que a `TURNSTILE
 
 ### Prioridade média — reduz perda de lead
 
-4. **Notificar também em `/api/verify-otp`.** Hoje o aviso sai em `signup-intent`. Um lead que confirma o código — portanto muito mais quente — não gera um segundo aviso distinguindo "confirmou" de "só começou".
-5. **TTL de 30 min do `verified-lead` é curto** para a realidade brasileira: PIX pode ser pago horas depois, cartão recusado costuma ter nova tentativa manual. Pode descartar silenciosamente leads **que já pagaram** fora da janela. Reavaliar junto com o gateway.
-6. **`/inscricao` não pergunta o nome da loja.** O modal pergunta; a API aceita o campo como opcional no fluxo de plano. Uniformizar daria à equipe a mesma informação nos dois caminhos.
-7. **`robots.txt` e `sitemap.xml`** não existem.
+*Vazia — os itens 4 a 7 foram resolvidos. Ver [Resolvidos](#-resolvidos--17-de-agosto-de-2026).*
 
 ### Prioridade baixa — dívida técnica
 
-8. **`npm run lint` está quebrado** — e estava antes destas mudanças. ESLint 9 exige `eslint.config.js`, que o repositório nunca versionou. A verificação usada foi `tsc --noEmit` + `next build`. Adicionar o flat config é trabalho de minutos.
-9. **Sem CI.** Não há `.github/workflows`; o deploy depende inteiramente da integração Vercel↔GitHub. Um workflow rodando `tsc` e `next build` no PR já evitaria merge de código quebrado.
 10. **Duas fontes de verdade de UI.** O bundle exportado convive com componentes React reais, o que já exigiu "cirurgia" em HTML gerado (os `href` dos planos, os gatilhos do modal) e vai continuar exigindo. Avaliar migrar a landing para fora do formato de bundle.
 11. **LCP depende de JavaScript.** Não há HTML crítico no primeiro byte: o runtime precisa baixar ~500 KB, descomprimir os assets e montar o DOM antes de pintar. Considerar SSR do hero.
 12. **Fontes em base64 dentro do HTML** têm ~33% de overhead e não podem ser cacheadas separadamente do documento.
-13. **`AutoGiro-DMS-Landing-Page.html.bak`** ainda em disco (já no `.gitignore`) — limpeza de higiene.
+13. **`AutoGiro-DMS-Landing-Page.html.bak`** ainda em disco (já no `.gitignore`) — limpeza de higiene. Confirmado que o arquivo **nunca foi versionado**: um clone limpo do repositório não o traz, então não há o que apagar pelo Git. Sobrou só na máquina onde foi gerado, e é lá que o `rm` precisa acontecer.
+
+### ✅ Resolvidos — 17 de agosto de 2026
+
+Todos no commit `a4d70c4` (PR #3). Validados com `npm run lint`, `npx tsc --noEmit` e `npm run build` passando, mais o funil exercitado ponta a ponta contra o servidor de desenvolvimento.
+
+4. ✅ **Notificar também em `/api/verify-otp`** — Resolvido. A rota dispara um segundo e-mail quando o código confere. `lib/resend.ts` ganhou um `sendLeadNotice(lead, stage)` comum, com dois pontos de entrada: `notifyNewLead` (etapa `intencao`) e `notifyVerifiedLead` (etapa `verificado`). Título, chamada, assunto, texto do botão e a primeira mensagem do WhatsApp mudam conforme a etapa — os dois avisos não chegam mais indistinguíveis na caixa da equipe. O retorno é ignorado de propósito: o lead já está no Redis e a resposta precisa carregar a URL de checkout.
+5. ✅ **TTL do `verified-lead`** — Resolvido. De 30 min para **24 h** (`VERIFIED_TTL_SECONDS`, em `lib/otpStore.ts`). A janela antiga descartava em silêncio quem pagava fora dela — PIX gerado à noite é pago na manhã seguinte, cartão recusado tem nova tentativa horas depois. Continua valendo reavaliar quando o gateway estiver ligado e o tempo real de conversão for conhecido.
+6. ✅ **Nome da loja em `/inscricao`** — Resolvido. O campo virou **obrigatório nos dois funis**: existe no formulário de `/inscricao` (com validação), é exigido pela rota de assinatura, é gravado na sala de espera do Redis (`PendingLead.loja`) e viaja até o `VerifiedLead` e até os dois avisos. A equipe recebe a mesma informação independentemente da porta de entrada.
+7. ✅ **`robots.txt` e `sitemap.xml`** — Resolvido. Ambos em `public/`. O robots libera todos os bots; `/api/` e `/checkout` ficam fora do índice e do sitemap por não terem conteúdo indexável — a primeira só responde a POST, a segunda é etapa intermediária de funil.
+8. ✅ **`npm run lint`** — Resolvido. `eslint.config.js` versionado. Como o `eslint-config-next` 15.5 ainda é publicado no formato eslintrc, o `FlatCompat` faz a tradução (é o que o próprio `create-next-app` gera hoje), e `@eslint/eslintrc` entrou como devDependency em vez de depender de um pacote transitivo. O lint roda com **0 erros**; restam 2 avisos pré-existentes e inofensivos (`amountCents` em `lib/checkout.ts`, usado só nas chamadas de gateway comentadas, e um `catch (e)` sem uso em `public/demo-modal.js`).
+9. ✅ **CI** — Resolvido. `.github/workflows/ci.yml` roda em Pull Requests para a `main`: Node 20, `npm ci`, `npm run lint`, `tsc --noEmit` e `next build`. Até então o único portão antes de produção era a Vercel, que constrói **depois** do merge.
+
+**Item extra, não previsto na lista:** o fallback em memória do `otpStore` vivia preso ao módulo. Como em desenvolvimento o Next compila cada rota em um bundle próprio, `signup-intent` e `verify-otp` tinham cada uma a *sua* sala de espera — o código enviado por uma nunca era encontrado pela outra, e o fluxo de OTP era impossível de testar local sem Upstash. Passou a viver no `globalThis`. Em produção o caminho nem é usado, já que lá o Redis é obrigatório.
 
 ---
 
