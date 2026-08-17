@@ -1,13 +1,14 @@
 /**
- * Monta o restante da landing (Calculadora, Estoque, CRM, Portais, Planos,
- * Legal, Footer) dentro de #ag-legacy-root, que app/page.tsx reserva logo
- * depois do Hero.
+ * Monta o miolo da landing (Calculadora, Estoque, CRM, Portais, Planos)
+ * dentro de #ag-legacy-root, que app/page.tsx reserva logo depois do Hero.
  *
  * Por que isto existe separado de app/page.tsx: Cabeçalho e Hero migraram
  * para componentes React reais, SSR'd (docs/STATUS.md, itens 10 e 11) — são
  * estáticos, sem state, então tirá-los do bundle exportado do Claude Design
- * era seguro. O RESTANTE da página não pôde seguir junto porque a calculadora
- * de giro tem estado reativo: o runtime do bundle (dc-runtime, minificado,
+ * era seguro. Legal e Footer seguiram pelo mesmo caminho depois, pelo mesmo
+ * motivo (components/landing/Legal.tsx, Footer.tsx) — o que sobrou aqui é a
+ * faixa entre o Hero e o rodapé. O MIOLO não pôde seguir junto porque a
+ * calculadora de giro tem estado reativo: o runtime do bundle (minificado,
  * carregado como blob a partir do manifest) monta React sobre um único nó
  * `<x-dc>` e, a cada slider mexido, RE-RENDERIZA A SUBÁRVORE INTEIRA a partir
  * do template que capturou em `dc.innerHTML` no boot — não por diffing linha
