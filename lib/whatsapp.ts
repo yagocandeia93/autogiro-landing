@@ -17,3 +17,8 @@ export const WA_LINK_CONSULTOR = waLink(
 export const WA_LINK_DEMO = waLink(
   "Olá! Vim pelo site do AutoGiro DMS e quero agendar uma demonstração do sistema."
 );
+
+/** Mesma mensagem que o bundle interpolava em `{{ waLinkSuporte }}` no rodapé. */
+export const WA_LINK_SUPORTE = waLink(
+  "Olá! Vim pelo site do AutoGiro DMS e preciso de ajuda do suporte."
+);

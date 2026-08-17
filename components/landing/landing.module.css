@@ -214,3 +214,213 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * Trust Badges e o modal de leitura das políticas (components/landing/
+ * Legal.tsx, TrustBadges.tsx). Substituem os três cards longos que a seção
+ * "Regras claras sobre os seus dados" trazia abertos na página.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+.trustGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+/* Mesmos pontos de quebra que o <style> do bundle usava na `.ag-legal` que
+   esta grade substitui, para não destoar do resto da página. */
+@media (max-width: 1150px) {
+  .trustGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .trustGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.trustBadge {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  justify-items: start;
+  text-align: left;
+  background: #0e141d;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 22px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.trustBadge:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: #111823;
+}
+.trustBadge:hover .trustAcao {
+  color: #ffb640;
+}
+
+.trustIcon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  margin-bottom: 2px;
+  background: #f5a524;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.trustSelo {
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.trustResumo {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #94a1b5;
+}
+
+.trustAcao {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #f5a524;
+  transition: color 0.2s;
+}
+
+/* Texto só para leitor de tela — o rótulo visível do selo não diz que há um
+   documento por trás dele. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* `<dialog>` nativo: foco preso, Escape e devolução de foco vêm do navegador.
+   Só o visual precisa ser escrito — o user-agent traz borda, fundo claro e
+   padding próprios, que seriam um retângulo branco no meio do tema escuro. */
+.trustDialog {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: #0e141d;
+  color: #e9edf3;
+  padding: 0;
+  /* Load-bearing: o `* { margin: 0 }` de app/globals.css zera o `margin: auto`
+     com que a folha do navegador centraliza um <dialog> modal, e ele nasce
+     grudado no canto superior esquerdo — inclusive por cima da região onde o
+     usuário clicaria para fechar pelo backdrop. */
+  margin: auto;
+  width: min(640px, calc(100vw - 40px));
+  max-height: min(80vh, 720px);
+  overflow: hidden;
+  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.9);
+}
+.trustDialog::backdrop {
+  background: rgba(6, 9, 13, 0.72);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.trustDialogCorpo {
+  display: grid;
+  /* `1fr` na faixa do meio é o que mantém a rolagem DENTRO do texto: sem isso
+     o corpo cresce e estoura o max-height do <dialog>, levando junto o topo
+     com o botão de fechar. */
+  grid-template-rows: auto 1fr auto;
+  max-height: min(80vh, 720px);
+}
+
+.trustDialogTopo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #111823;
+}
+
+.trustDialogTitulo {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 600;
+}
+
+.trustDialogFechar {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #c7d0dc;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+.trustDialogFechar:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+.trustDialogTexto {
+  overflow-y: auto;
+  padding: 22px;
+  display: grid;
+  gap: 14px;
+}
+.trustDialogTexto p {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #b3bdcc;
+}
+
+.trustDialogRodape {
+  margin: 0;
+  padding: 14px 22px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #6b7889;
+}
+
+/* Rodapé — replica a `.ag-footer` do <style> do bundle, que sumiu junto com
+   ele. */
+.footerGrid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+}
+@media (max-width: 1024px) {
+  .footerGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.footerLink {
+  font-size: 13.5px;
+  color: #94a1b5;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.footerLink:hover {
+  color: #ffffff;
+}
