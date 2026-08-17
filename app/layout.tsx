@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./globals.css";
 
 const TITLE = "AutoGiro DMS | Sistema de Gestão para Revenda de Veículos";
 const DESCRIPTION =
@@ -6,10 +7,10 @@ const DESCRIPTION =
   "veículo, CRM de leads e publicação nos portais em um único sistema.";
 const ORIGIN = "https://autogirodms.com.br";
 
-// Vale para as rotas React (/inscricao, /checkout). A landing em si é
-// public/index.html, servida estática, e carrega as mesmas tags no próprio
-// <head> — o bundle troca o documento inteiro em tempo de execução, então o
-// metadata do Next não alcança aquela página.
+// Desde a migração de Cabeçalho/Hero para React real (docs/STATUS.md, item
+// 11), este metadata alcança "/" de verdade — antes só valia para /inscricao
+// e /checkout, porque a landing era um redirect para public/index.html
+// (estático, com as mesmas tags duplicadas no próprio <head> do bundle).
 export const metadata: Metadata = {
   metadataBase: new URL(ORIGIN),
   title: TITLE,
@@ -53,7 +54,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
+    // suppressHydrationWarning: o conteúdo legado (public/legacy-mount.js)
+    // adiciona a classe "ag-js" a este <html> assim que monta — é o mesmo
+    // padrão de um script de dark-mode que toca documentElement antes da
+    // hidratação terminar; sem isto, React loga (mas não corrige — o aviso
+    // já diz "this won't be patched up") um mismatch inofensivo no className.
+    <html lang="pt-BR" suppressHydrationWarning>
+      {/*
+        Preload só dos subsets latin (o único que a maioria dos visitantes
+        brasileiros carrega) das duas famílias — Next hoisting coloca isto no
+        <head> de qualquer página. Reduz o tempo até o texto do Hero pintar
+        com a fonte final em vez de um fallback (docs/STATUS.md, item 11).
+      */}
+      <link rel="preload" href="/fonts/geist-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+      <link rel="preload" href="/fonts/geist-mono-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
       <body>{children}</body>
     </html>
   );

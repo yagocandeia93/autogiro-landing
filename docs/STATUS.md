@@ -25,6 +25,8 @@ Dos 6 gargalos apontados na análise original, **4 foram resolvidos**, 1 foi par
 
 **Sprint seguinte (17/08), PR #3 (`a4d70c4`):** fechou os itens **4 a 9** da seção 6 — segundo aviso de lead em `/api/verify-otp`, TTL do `verified-lead` de 30 min para 24 h, "Nome da loja" obrigatório também em `/inscricao`, `robots.txt` e `sitemap.xml`, `npm run lint` funcionando e CI em Pull Requests. Detalhe de cada um em [Resolvidos](#-resolvidos--17-de-agosto-de-2026).
 
+**Sprint seguinte (17/08, mesmo dia), branch `claude/autogiro-cleanup-seo-backend-mwgm6p`, aguardando revisão/merge:** fechou os itens **10 a 12** — Cabeçalho e Hero migraram para componentes React reais e SSR'd, fontes saíram do base64 embutido para arquivos `.woff2` cacheáveis. Detalhe de cada um, incluindo o porquê de a Calculadora e o restante da página **não** terem seguido junto, em [Resolvidos](#-resolvidos--17-de-agosto-de-2026-2).
+
 ---
 
 ## 2. O que foi corrigido
@@ -164,6 +166,8 @@ Isso prova as duas coisas que não eram verificáveis por fora: que a `TURNSTILE
 ## 6. O que falta
 
 > **Atualização de 17/08:** os itens **4 a 9** — toda a faixa de prioridade média, mais as duas primeiras dívidas técnicas — foram resolvidos no commit `a4d70c4` (PR #3). Saíram das listas abaixo e estão registrados em [Resolvidos](#-resolvidos--17-de-agosto-de-2026), no fim da seção. A numeração original foi mantida para não quebrar a referência com a versão anterior deste documento.
+>
+> **Atualização de 17/08 (mesmo dia):** os itens **10 a 12** também saíram — Cabeçalho/Hero migrados para React real e SSR'd, fontes deixaram de ir embutidas em base64. Ver [Resolvidos](#-resolvidos--17-de-agosto-de-2026-2).
 
 ### Prioridade alta — destrava receita
 
@@ -177,10 +181,7 @@ Isso prova as duas coisas que não eram verificáveis por fora: que a `TURNSTILE
 
 ### Prioridade baixa — dívida técnica
 
-10. **Duas fontes de verdade de UI.** O bundle exportado convive com componentes React reais, o que já exigiu "cirurgia" em HTML gerado (os `href` dos planos, os gatilhos do modal) e vai continuar exigindo. Avaliar migrar a landing para fora do formato de bundle.
-11. **LCP depende de JavaScript.** Não há HTML crítico no primeiro byte: o runtime precisa baixar ~500 KB, descomprimir os assets e montar o DOM antes de pintar. Considerar SSR do hero.
-12. **Fontes em base64 dentro do HTML** têm ~33% de overhead e não podem ser cacheadas separadamente do documento.
-13. **`AutoGiro-DMS-Landing-Page.html.bak`** ainda em disco (já no `.gitignore`) — limpeza de higiene. Confirmado que o arquivo **nunca foi versionado**: um clone limpo do repositório não o traz, então não há o que apagar pelo Git. Sobrou só na máquina onde foi gerado, e é lá que o `rm` precisa acontecer.
+*Vazia — os itens 10 a 12 foram resolvidos; o 13 nunca teve nada pra resolver aqui (ver abaixo). Ver [Resolvidos](#-resolvidos--17-de-agosto-de-2026-2).*
 
 ### ✅ Resolvidos — 17 de agosto de 2026
 
@@ -194,6 +195,17 @@ Todos no commit `a4d70c4` (PR #3). Validados com `npm run lint`, `npx tsc --noEm
 9. ✅ **CI** — Resolvido. `.github/workflows/ci.yml` roda em Pull Requests para a `main`: Node 20, `npm ci`, `npm run lint`, `tsc --noEmit` e `next build`. Até então o único portão antes de produção era a Vercel, que constrói **depois** do merge.
 
 **Item extra, não previsto na lista:** o fallback em memória do `otpStore` vivia preso ao módulo. Como em desenvolvimento o Next compila cada rota em um bundle próprio, `signup-intent` e `verify-otp` tinham cada uma a *sua* sala de espera — o código enviado por uma nunca era encontrado pela outra, e o fluxo de OTP era impossível de testar local sem Upstash. Passou a viver no `globalThis`. Em produção o caminho nem é usado, já que lá o Redis é obrigatório.
+
+### ✅ Resolvidos — 17 de agosto de 2026
+
+Sprint separada da anterior, mesmo dia. Todos validados com `npm run lint`, `npx tsc --noEmit` e `npm run build`, mais Playwright contra o dev server (interação real com a Calculadora, abertura do modal pelos CTAs novos e pelos que continuam no bundle, envio completo até "Pedido recebido", telas de 390 px e 1440 px, sem erro de console).
+
+10. ✅ **Duas fontes de verdade de UI** — Resolvido parcialmente, do jeito seguro. Cabeçalho e Hero saíram do bundle e viraram componentes React reais (`components/landing/Header.tsx`, `Hero.tsx`), com o mesmo conteúdo/estrutura extraídos byte a byte do template antigo. `Pricing.tsx` também virou componente e já está em uso de verdade em `/inscricao`. O resto (Calculadora, Estoque, CRM, Portais, Planos *na própria landing*, Legal, Footer) **continua** no bundle — e não por preguiça: o motor do bundle (`dc-runtime`, decodificado e lido linha a linha para esta migração) monta React sobre um único nó `<x-dc>` e RE-RENDERIZA A SUBÁRVORE INTEIRA a cada `setState` da Calculadora. `<x-dc>` só existe em um lugar do documento; fatiar mais alguma seção pra fora dele sem entender essa restrição quebraria a Calculadora na primeira interação. O comentário grande no topo de `public/legacy-mount.js` documenta isso para quem for continuar a migração.
+11. ✅ **LCP depende de JavaScript** — Resolvido para a dobra acima. `app/page.tsx` deixou de ser um redirect para HTML estático: agora é uma página real do App Router, prerenderizada (○ no output do build). O HTML que chega no primeiro byte já contém a headline, o subtítulo e o CTA do Hero — confirmado via `curl`, sem depender de nenhum JavaScript rodar. O restante da página segue montando em runtime como antes.
+12. ✅ **Fontes em base64** — Resolvido. As 11 fontes (`Geist`/`Geist Mono`, 5 e 6 subsets) saíram do manifest embutido em base64 e viraram arquivos `.woff2` reais em `public/fonts/`, referenciados por `@font-face` em `app/globals.css` — cacheáveis separadamente do HTML, com preload dos subsets latin no `<head>`. O bundle legado (`public/legacy-content.html`) caiu de ~497 KB para ~252 KB só com essa remoção; o restante de peso das fontes (mais os 4 ícones do Header/Hero, extraídos como SVG reais em `public/icons/`) virou download único, cacheado à parte.
+13. **`.bak`** — sem mudança de status: seguiu confirmado, de novo, que o arquivo nunca esteve no Git. Nada a resolver por aqui.
+
+**Achado técnico registrado para quem mexer nisso de novo:** `<div dangerouslySetInnerHTML={{ __html: "" }} suppressHydrationWarning />` é obrigatório no container onde um script externo (`legacy-mount.js`) injeta DOM por fora do React — sem isso, o primeiro reconcile do React encontra filhos que não gerou e os apaga, entendendo como mismatch de hidratação. Documentado com o mesmo nível de detalhe em `app/page.tsx`.
 
 ---
 

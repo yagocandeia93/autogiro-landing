@@ -1,0 +1,186 @@
+/*
+ * Estados de :hover/:active E breakpoints responsivos dos componentes novos
+ * (Header, Hero). O bundle legado codifica hover/active como atributos
+ * custom `style-hover`/`style-active` (interpretados em runtime pelo
+ * dc-runtime) e os breakpoints como classes (`ag-nav`, `ag-split`, `ag-kpi`)
+ * casadas por um <style> global só disponível depois que o bundle monta —
+ * inútil para conteúdo SSR'd, que precisa da regra já no primeiro CSS.
+ * Aqui, sendo CSS real com módulo, os dois viram seletor de verdade — sem
+ * JS, sem 'use client', disponível desde o primeiro byte.
+ *
+ * Breakpoints copiados do <style> que fica ao fim de public/legacy-content.html
+ * (mesmos valores usados pelo restante da página, pra não destoar visualmente
+ * do que o bundle ainda renderiza): nav some em <=1100px; o grid do Hero
+ * colapsa pra 1 coluna em <=900px; a grade de KPIs do mini-painel vai de 3
+ * pra 2 colunas entre 901–1180px e pra 1 em <=620px.
+ */
+
+.navLink {
+  color: #b3bdcc;
+  text-decoration: none;
+  font-size: 14.5px;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.navLink:hover {
+  color: #ffffff;
+}
+
+.waPill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #c7d0dc;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+  white-space: nowrap;
+}
+.waPill:hover {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.ctaButton {
+  background: #f5a524;
+  color: #1b1305;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 10px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 0.2s,
+    transform 0.12s;
+}
+.ctaButton:hover {
+  background: #ffb640;
+}
+.ctaButton:active {
+  transform: translateY(1px);
+}
+
+.ctaButtonBlock {
+  display: block;
+  text-align: center;
+  background: #f5a524;
+  color: #1b1305;
+  border-radius: 10px;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background 0.2s,
+    transform 0.12s;
+}
+.ctaButtonBlock:hover {
+  background: #ffb640;
+}
+.ctaButtonBlock:active {
+  transform: translateY(1px);
+}
+
+.waFallbackLink {
+  font-weight: 600;
+}
+
+.planLinkOutline {
+  display: block;
+  text-align: center;
+  padding: 13px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #e9edf3;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.planLinkOutline:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.planLinkSolid {
+  display: block;
+  text-align: center;
+  padding: 13px;
+  border-radius: 10px;
+  background: #f5a524;
+  color: #1b1305;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background 0.2s,
+    transform 0.12s;
+}
+.planLinkSolid:hover {
+  background: #ffb640;
+}
+.planLinkSolid:active {
+  transform: translateY(1px);
+}
+
+/* Aplicada tanto no <nav> quanto no link do WhatsApp do Header — os dois
+   somem juntos em telas estreitas, igual ao ".ag-nav" original. */
+@media (max-width: 1100px) {
+  .hideBelow1100 {
+    display: none !important;
+  }
+}
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: 1.02fr 1.18fr;
+}
+@media (max-width: 900px) {
+  .heroGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.heroKpiGrid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (min-width: 901px) and (max-width: 1180px) {
+  .heroKpiGrid3 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+@media (max-width: 620px) {
+  .heroKpiGrid3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.heroKpiGrid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+@media (max-width: 620px) {
+  .heroKpiGrid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pricingGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 900px) {
+  .pricingGrid {
+    grid-template-columns: 1fr;
+  }
+}
