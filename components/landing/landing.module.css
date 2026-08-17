@@ -143,11 +143,41 @@
 .heroGrid {
   display: grid;
   grid-template-columns: 1.02fr 1.18fr;
+  position: relative;
+  /* Mesmo motivo do `isolation` nas faixas de app/globals.css: abre um
+     contexto de empilhamento para o halo abaixo poder viver em z-index:-1 —
+     acima do fundo da página, atrás do conteúdo do próprio Hero. */
+  isolation: isolate;
 }
 @media (max-width: 900px) {
   .heroGrid {
     grid-template-columns: 1fr;
   }
+}
+
+/*
+ * Halo da marca na primeira emenda da rolagem (Hero → Calculadora). O bloco
+ * legado que vem logo abaixo tem fundo opaco e é pintado depois do Hero, então
+ * ele CORTA o halo exatamente na linha da emenda: a luz morre onde a faixa
+ * elevada de #calculadora começa, o que reforça a quebra em vez de borrá-la.
+ * Gradiente radial em vez de blur(): mesmo resultado visual, sem o custo de
+ * rasterizar e desfocar uma camada de várias centenas de pixels a cada scroll.
+ */
+.heroGrid::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  bottom: -120px;
+  left: 50%;
+  /* `100%` = caixa de padding do próprio Hero, nunca a viewport: um `vw` aqui
+     estouraria a largura da página em telas médias (o halo é mais largo que a
+     coluna) e, embora o `overflow-x: clip` do body esconda a barra, o
+     documento passaria a medir mais que a viewport. */
+  width: min(1100px, 100%);
+  height: 420px;
+  transform: translateX(-50%);
+  background: radial-gradient(50% 50% at 50% 50%, rgba(245, 165, 36, 0.07), rgba(245, 165, 36, 0) 70%);
+  pointer-events: none;
 }
 
 .heroKpiGrid3 {
