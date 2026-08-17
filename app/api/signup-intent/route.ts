@@ -7,7 +7,7 @@ import { sendOtpEmail, notifyNewLead } from "@/lib/resend";
 // Rota de "intenção de cadastro" — Muro 3 (anti-abuso) + Muro 2 (OTP por
 // e-mail) isolados do Muro 1 (gateway de pagamento), que ainda não existe.
 // Passa daqui pra "sala de espera" no Redis (lib/otpStore.ts): nome, e-mail,
-// WhatsApp, plano e o OTP ficam guardados por 15 min. NÃO cria tenant nem
+// WhatsApp, loja, plano e o OTP ficam guardados por 15 min. NÃO cria tenant nem
 // cobra ninguém — ver README.md para o que falta.
 //
 // A rota atende DOIS fluxos, que dividem o Muro 3 mas divergem depois:
@@ -25,7 +25,7 @@ interface SignupIntentBody {
   nome?: string;
   email?: string;
   whatsapp?: string;
-  /** Nome da loja — obrigatório no fluxo de demonstração. */
+  /** Nome da loja — obrigatório nos dois fluxos. */
   loja?: string;
   plan?: "BASICO" | "PRO";
   /** De onde o lead veio na landing: CTA de demonstração ou botão de plano. */
@@ -91,13 +91,16 @@ export async function POST(req: NextRequest) {
   const isDemo = body.origem === "demonstracao";
 
   const plan = parsePlan(body.plan);
+  // Nome da loja é exigido nos DOIS fluxos: /inscricao passou a perguntar,
+  // igualando-se ao modal. Antes o campo era opcional no fluxo de plano e a
+  // equipe recebia o mesmo lead com informação diferente conforme a porta de
+  // entrada. Demonstração ignora plano; assinatura exige.
   const camposBase =
-    nome.length >= 2 && EMAIL_RE.test(email) && isValidBRPhone(whatsapp);
-  // Demonstração exige a loja e ignora plano; assinatura exige plano e aceita
-  // loja como opcional (o formulário de /inscricao ainda não pergunta isso).
-  const camposOk = isDemo
-    ? camposBase && loja.length >= 2
-    : camposBase && plan !== null;
+    nome.length >= 2 &&
+    EMAIL_RE.test(email) &&
+    isValidBRPhone(whatsapp) &&
+    loja.length >= 2;
+  const camposOk = isDemo ? camposBase : camposBase && plan !== null;
 
   if (!camposOk) {
     return NextResponse.json(
@@ -105,7 +108,7 @@ export async function POST(req: NextRequest) {
         error: "missing_fields",
         message: isDemo
           ? "Confira nome, e-mail, WhatsApp e o nome da loja antes de continuar."
-          : "Confira nome, e-mail, WhatsApp e plano antes de continuar.",
+          : "Confira nome, e-mail, WhatsApp, o nome da loja e o plano antes de continuar.",
       },
       { status: 400 }
     );
@@ -182,6 +185,7 @@ export async function POST(req: NextRequest) {
     nome,
     email,
     whatsapp,
+    loja,
     plan,
     otp,
     attempts: 0,
@@ -212,7 +216,7 @@ export async function POST(req: NextRequest) {
     nome,
     email,
     whatsapp,
-    loja: loja || undefined,
+    loja,
     plan,
     origem: "plano",
   });

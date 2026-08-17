@@ -1,0 +1,12 @@
+# https://autogirodms.com.br — landing do AutoGiro DMS
+# Servido estático a partir de public/.
+
+User-agent: *
+Allow: /
+
+# Rotas de funil e de API não têm conteúdo para indexar: /api/* só responde a
+# POST e /checkout é uma etapa intermediária do fluxo de assinatura.
+Disallow: /api/
+Disallow: /checkout
+
+Sitemap: https://autogirodms.com.br/sitemap.xml

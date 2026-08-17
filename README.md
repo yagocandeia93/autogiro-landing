@@ -40,13 +40,14 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
   (`lib/otpStore.ts`), com rate limit próprio (5 tentativas / 15 min, por
   e-mail E por IP — um código de 6 dígitos só tem 1 milhão de combinações,
   então essa rota precisa do próprio limite, não só o do Turnstile). Acerta →
-  o lead vira `verified-lead:{email}` no Redis (TTL 30 min), pronto pro Muro
-  1. Erra → conta a tentativa contra o lead; 5 erradas apaga o código e pede
-  pra recomeçar.
+  o lead vira `verified-lead:{email}` no Redis (TTL 24 h), pronto pro Muro
+  1, e a equipe recebe o segundo aviso por e-mail ("e-mail confirmado", o
+  lead mais quente do funil). Erra → conta a tentativa contra o lead; 5
+  erradas apaga o código e pede pra recomeçar.
 - **Estratégia "sala de espera"** (`lib/otpStore.ts`): nada disso cria linha
   no banco do AutoGiro. `signup-intent` gera o OTP (`node:crypto.randomInt`,
   não `Math.random` — é um código de segurança) e guarda
-  `{ nome, email, whatsapp, plano, otp, attempts }` no Redis por 15 min, e
+  `{ nome, email, whatsapp, loja, plano, otp, attempts }` no Redis por 15 min, e
   dispara o e-mail via Resend (`lib/resend.ts`). Sem `RESEND_API_KEY` em dev,
   o código é só impresso no console — não precisa de conta no Resend pra
   testar o fluxo localmente.
@@ -86,12 +87,14 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
   app principal foi desenhado de propósito para NENHUM papel enxergar entre
   lojas. Precisa de `/plan` próprio no repo do AutoGiro antes de
   implementar essa chamada de verdade.
-- **TTL do `verified-lead` (30 min) vs. tempo real de pagamento**: PIX pode
-  ser pago minutos depois de gerado; cartão recusado costuma ter retry
-  manual. Se o pagamento confirmar depois que o registro expirar no Redis,
-  o webhook (corretamente) não acha o lead e loga erro. Vale reavaliar esse
-  TTL quando o gateway estiver escolhido e o tempo real de conversão for
-  conhecido.
+- **TTL do `verified-lead` (24 h) vs. tempo real de pagamento**: eram 30 min,
+  curtos demais — PIX gerado à noite é pago na manhã seguinte e cartão
+  recusado costuma ter retry manual horas depois, então o webhook chegava
+  sem achar o lead e alguém que **já tinha pago** era descartado em
+  silêncio. Com 24 h a janela cobre o comportamento real; se o pagamento
+  confirmar mesmo assim depois disso, o webhook (corretamente) não acha o
+  lead e loga erro. Reavaliar de novo quando o gateway estiver ligado e o
+  tempo real de conversão for conhecido.
 
 ## Rodando local
 

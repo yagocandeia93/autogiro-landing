@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 
   const lead = await getVerifiedLead(externalReference);
   if (!lead) {
-    // O verified-lead expira em 30 min. Se o pagamento demorar mais que
+    // O verified-lead expira em 24 h. Se o pagamento demorar mais que
     // isso (PIX pago só depois de gerado, cartão com retry manual), o
     // webhook chega sem achar quem provisionar. Isso é motivo de alerta
     // operacional — não um 500: o webhook está correto, o dado que
