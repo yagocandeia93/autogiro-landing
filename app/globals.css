@@ -356,6 +356,27 @@
 }
 :root {
   color-scheme: dark;
+
+  /*
+   * Escala de superfícies do tema escuro, em ordem de elevação. Os valores
+   * não são novos — são os mesmos que o bundle legado já usa espalhados em
+   * estilo inline; nomeá-los aqui é o que permite demarcar as seções sem
+   * reescrever o bundle (ver "Demarcação entre seções" ao fim do arquivo).
+   *
+   *   base    #0a0e14  L* 3,9   fundo da página (Hero, Estoque, Portais, Legal)
+   *   raised  #0d121b  L* 5,4   faixas alternadas (Calculadora, CRM, Planos)
+   *   card    #0e141d  L* 6,2   cards dentro das seções (inline, no bundle)
+   *   panel   #111823  L* 7,4   cabeçalho de painel / plano em destaque (idem)
+   *
+   * A faixa elevada fica DELIBERADAMENTE abaixo de --card no L*: se passasse
+   * dela, os cards ficariam mais escuros que a própria seção e a hierarquia
+   * de elevação se inverteria.
+   */
+  --ag-surface-base: #0a0e14;
+  --ag-surface-raised: #0d121b;
+  --ag-rule: rgba(255, 255, 255, 0.08);
+  --ag-section-wash: rgba(255, 255, 255, 0.035);
+  --ag-brand: #f5a524;
 }
 
 * {
@@ -369,7 +390,7 @@ html {
 }
 
 body {
-  background: #0a0e14;
+  background: var(--ag-surface-base);
   color: #e9edf3;
   font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -378,11 +399,112 @@ body {
 }
 
 a {
-  color: #f5a524;
+  color: var(--ag-brand);
 }
 
 input,
 select,
 button {
   font-family: inherit;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * Demarcação entre seções (cegueira de rolagem)
+ *
+ * O fundo contínuo fazia o visitante perder a noção de que tinha mudado de
+ * seção ao rolar. A correção é a alternância clássica de SaaS B2B: faixas
+ * elevadas intercaladas com o fundo base, cada emenda marcada por uma régua
+ * de 1px. Parte disso já existia no bundle (Calculadora e CRM vinham com
+ * `background: #0c1119` + border-top/bottom inline), mas a sequência tinha um
+ * buraco: #portais, #planos e #legal eram três seções seguidas no MESMO fundo,
+ * sem nenhuma linha entre #portais e #planos — justamente a emenda que leva à
+ * conversão. #planos entra aqui como a terceira faixa elevada, o que restaura
+ * a alternância base → elevada → base → elevada → base do início ao fim.
+ *
+ * Por que via CSS global e não editando o markup: Calculadora, CRM e Planos
+ * moram em public/legacy-content.html, um bundle exportado cujo template é uma
+ * string JSON de 48KB re-renderizada inteira a cada slider da calculadora (ver
+ * o comentário no topo de public/legacy-mount.js). Regra externa sobrevive a
+ * esse re-render e mantém o diff legível.
+ *
+ * Por que pseudo-elemento e não `background` direto: as três seções carregam
+ * estilo inline vindo do bundle, que venceria qualquer regra daqui. O fundo do
+ * próprio elemento é pintado ANTES dos filhos com z-index negativo, então uma
+ * faixa em ::before cobre o inline sem precisar de !important em lugar nenhum.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+#calculadora,
+#crm,
+#planos {
+  position: relative;
+  /*
+   * Contexto de empilhamento próprio. Todo o conteúdo legado vive dentro de um
+   * <div> com `background: #0a0e14` opaco; sem `isolation`, os pseudo-elementos
+   * em z-index:-1 abaixo seriam pintados no contexto da RAIZ — ou seja, antes
+   * do fundo daquele wrapper, que os cobriria por completo. Com o contexto
+   * local eles ficam acima do wrapper e ainda assim atrás do conteúdo da
+   * própria seção, sem precisar mexer no z-index de nenhum filho.
+   */
+  isolation: isolate;
+}
+
+#calculadora::before,
+#crm::before,
+#planos::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  /*
+   * #planos é uma coluna centrada de 1120px (max-width inline, do bundle), não
+   * uma seção full-bleed como as outras duas — sem o sangramento a faixa
+   * apareceria como um bloco solto no meio da página. body e o wrapper legado
+   * já têm `overflow-x: clip`, então os 100vw não criam rolagem horizontal.
+   */
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  /*
+   * Elevação de ~1,5 ponto de L* sobre o fundo base, mais uma lavagem de luz
+   * nos primeiros 220px: na emenda o contraste chega a ~5 pontos de L* (bem
+   * dentro do teto de 10% pedido) e se dissolve logo em seguida. O degradê
+   * cobre só a faixa de título/subtítulo — nenhum card começa antes disso —,
+   * então a hierarquia card-sobre-seção continua de pé mais abaixo.
+   */
+  background:
+    linear-gradient(to bottom, var(--ag-section-wash), rgba(255, 255, 255, 0) 220px),
+    var(--ag-surface-raised);
+}
+
+/*
+ * Régua superior só em #planos: #calculadora e #crm já trazem border-top e
+ * border-bottom inline. A borda de baixo de #planos também fica de fora — o
+ * border-top que #legal já tem cobre essa emenda, e duas réguas de 1px coladas
+ * virariam uma linha de 2px, destoando de todas as outras.
+ */
+#planos::before {
+  border-top: 1px solid var(--ag-rule);
+}
+
+/*
+ * Brilho da marca na emenda #portais → #planos. Fica acima da faixa (::after
+ * pinta depois de ::before, mesmo z-index) e sangra 60px para cima, ainda
+ * dentro do padding inferior de #portais — nenhum texto passa por baixo dele.
+ * Opacidade de pico 0,05: ~5 pontos de L* no centro do halo, dissolvendo em
+ * gradiente radial até zero.
+ */
+#planos::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -60px;
+  left: 50%;
+  /* `100%` (caixa de padding da seção) em vez de `vw`, mesmo motivo do halo do
+     Hero em components/landing/landing.module.css: nunca alarga o documento. */
+  width: min(880px, 100%);
+  height: 300px;
+  transform: translateX(-50%);
+  background: radial-gradient(50% 50% at 50% 50%, rgba(245, 165, 36, 0.05), rgba(245, 165, 36, 0) 70%);
+  pointer-events: none;
 }
