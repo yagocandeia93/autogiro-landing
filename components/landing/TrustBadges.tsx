@@ -19,7 +19,7 @@ const monoFont = "'Geist Mono', monospace";
  *
  * Os modais usam `<dialog>` nativo: foco preso dentro do modal, Escape,
  * `::backdrop` e devolução do foco ao elemento que abriu já vêm do navegador.
- * public/demo-modal.js precisou implementar tudo isso à mão (trap de Tab,
+ * public/lead-modal.js precisou implementar tudo isso à mão (trap de Tab,
  * listener de Escape, devolução de foco) porque nasceu como script solto no
  * bundle; aqui não há motivo para repetir ~80 linhas de a11y que a plataforma
  * entrega de graça.

@@ -4,7 +4,7 @@ import {
   verifyPaymentWebhook,
   webhookSignatureHeaderName,
 } from "@/lib/webhookSignature";
-import { claimWebhookEvent, getVerifiedLead, type VerifiedLead } from "@/lib/otpStore";
+import { claimWebhookEvent, getSignupLead, type SignupLead } from "@/lib/leadStore";
 
 // Ouvinte do gateway de pagamento (Asaas ou Pagar.me — ainda não escolhido,
 // ver README). Esta é a única rota com permissão de considerar um lead
@@ -84,15 +84,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: eventType });
   }
 
-  const lead = await getVerifiedLead(externalReference);
+  const lead = await getSignupLead(externalReference);
   if (!lead) {
-    // O verified-lead expira em 24 h. Se o pagamento demorar mais que
-    // isso (PIX pago só depois de gerado, cartão com retry manual), o
-    // webhook chega sem achar quem provisionar. Isso é motivo de alerta
-    // operacional — não um 500: o webhook está correto, o dado que
-    // faltava expirou. Ver README ("TTL curto demais?").
+    // O signup-lead expira em 7 dias. Se o consultor demorar mais que isso
+    // para fechar a venda, o webhook chega sem achar quem provisionar. Isso é
+    // motivo de alerta operacional — não um 500: o webhook está correto, o
+    // dado que faltava expirou. Ver README ("TTL curto demais?").
     console.error(
-      `[webhooks/payment] pagamento confirmado sem verified-lead correspondente: ${externalReference}`
+      `[webhooks/payment] pagamento confirmado sem signup-lead correspondente: ${externalReference}`
     );
     return NextResponse.json({ error: "lead_not_found" }, { status: 404 });
   }
@@ -143,7 +142,7 @@ function isPaymentConfirmedEvent(gateway: string, eventType: string): boolean {
  * próprio /plan aprovado lá antes de qualquer chamada de verdade sair
  * daqui. Ver README, seção "A ponte para o app principal".
  */
-async function triggerProvisioning(lead: VerifiedLead, eventId: string): Promise<void> {
+async function triggerProvisioning(lead: SignupLead, eventId: string): Promise<void> {
   console.log(
     `[webhooks/payment] MOCK — provisionaria a loja de ${lead.email} (plano ${lead.plan}, evento ${eventId})`
   );

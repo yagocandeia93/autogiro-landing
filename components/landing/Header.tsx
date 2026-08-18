@@ -14,9 +14,10 @@ const NAV_LINKS = [
  * SSR'd — ver docs/STATUS.md, itens 10 e 11. Sem state, sem slider: seguro
  * de tirar do `<x-dc>` reativo (detalhes em public/legacy-mount.js).
  *
- * `data-ag-demo` é o único contrato com public/demo-modal.js: ele delega o
+ * `data-ag-demo` é o único contrato com public/lead-modal.js: ele delega o
  * clique no `document`, então este atributo é tudo que o botão precisa —
- * nenhuma lógica de modal migra para cá.
+ * nenhuma lógica de modal migra para cá. (Os botões de plano usam o mesmo
+ * mecanismo com `data-ag-signup="BASICO|PRO"`, mas vivem no bundle.)
  */
 export function Header() {
   return (

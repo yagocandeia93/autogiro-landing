@@ -1,24 +1,23 @@
-import type { VerifiedLead } from "@/lib/otpStore";
+import type { SignupLead } from "@/lib/leadStore";
 import { currentGateway } from "@/lib/webhookSignature";
 
-const PLAN_PRICE_CENTS: Record<VerifiedLead["plan"], number> = {
+const PLAN_PRICE_CENTS: Record<SignupLead["plan"], number> = {
   BASICO: 29900,
   PRO: 49900,
 };
 
 /**
  * Cria a sessão de checkout no gateway escolhido e devolve a URL de
- * pagamento pra onde o front-end redireciona depois do Muro 2. AINDA NÃO
- * CHAMA NENHUM GATEWAY DE VERDADE — as chaves (Asaas ou Pagar.me) só saem
- * sexta-feira. O que importa aqui é a forma: `email` vai como
- * `external_reference`/metadata da cobrança, porque é isso que o webhook
- * (app/api/webhooks/payment) usa pra achar de volta qual `verified-lead` no
+ * pagamento. AINDA NÃO CHAMA NENHUM GATEWAY DE VERDADE — as chaves (Asaas ou
+ * Pagar.me) só saem sexta-feira. O que importa aqui é a forma: `email` vai
+ * como `external_reference`/metadata da cobrança, porque é isso que o webhook
+ * (app/api/webhooks/payment) usa pra achar de volta qual `signup-lead` no
  * Redis foi pago.
  *
  * Quando o SDK entrar, o corpo desta função vira a chamada real — a
  * assinatura (recebe o lead, devolve a URL) não muda.
  */
-export async function createCheckoutLink(lead: VerifiedLead): Promise<string> {
+export async function createCheckoutLink(lead: SignupLead): Promise<string> {
   const gateway = currentGateway();
   const amountCents = PLAN_PRICE_CENTS[lead.plan];
 

@@ -1,25 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSignupRateLimiter, clientIp } from "@/lib/rateLimit";
 import { verifyTurnstileToken } from "@/lib/turnstile";
-import { generateOtp, savePendingLead } from "@/lib/otpStore";
-import { sendOtpEmail, notifyNewLead } from "@/lib/resend";
+import { saveSignupLead } from "@/lib/leadStore";
+import { notifyNewLead } from "@/lib/resend";
 
-// Rota de "intenção de cadastro" — Muro 3 (anti-abuso) + Muro 2 (OTP por
-// e-mail) isolados do Muro 1 (gateway de pagamento), que ainda não existe.
-// Passa daqui pra "sala de espera" no Redis (lib/otpStore.ts): nome, e-mail,
-// WhatsApp, loja, plano e o OTP ficam guardados por 15 min. NÃO cria tenant nem
-// cobra ninguém — ver README.md para o que falta.
+// Rota única de captura de lead da landing. Recebe os dois funis do modal
+// (public/lead-modal.js), que dividem os mesmos muros anti-abuso:
 //
-// A rota atende DOIS fluxos, que dividem o Muro 3 mas divergem depois:
+//   origem=plano         → "Assinar agora" (Básico) / "Começar agora" (Pro).
+//                          Manda também o plano escolhido no botão.
+//   origem=demonstracao  → CTAs de "Agendar demonstração".
 //
-//   origem=plano         → botões de assinatura, vindos de /inscricao.
-//                          Segue o caminho completo: OTP + sala de espera.
-//   origem=demonstracao  → modal de "Agendar demonstração" da landing.
-//                          Só pede retorno de um consultor, então NÃO gera
-//                          OTP: mandar "seu código de verificação" para quem
-//                          pediu uma ligação é confuso, e não há cadastro para
-//                          confirmar. O aviso para a equipe é o entregável, e
-//                          é ele que virou o registro durável desse lead.
+// NÃO cria tenant nem cobra ninguém — ver README.md para o que falta.
+//
+// O que mudou: o funil de assinatura tinha um segundo muro, de verificação
+// por e-mail. A rota gerava um código de 6 dígitos, guardava o lead numa
+// "sala de espera" de 15 min no Redis e mandava o código; /api/verify-otp
+// conferia o código e só então avisava a equipe pela segunda vez. Cada passo
+// custava leads: sair da landing, esperar o e-mail, achar o código, voltar e
+// digitar. O Turnstile (Muro 3) já é o que barra robô — o código servia para
+// provar posse do e-mail, garantia que ninguém consumia, porque quem fecha a
+// venda é um consultor pelo WhatsApp. Sem ele, o envio termina em um passo só.
 
 interface SignupIntentBody {
   nome?: string;
@@ -86,15 +87,13 @@ export async function POST(req: NextRequest) {
   const email = body.email?.trim() ?? "";
   const whatsapp = body.whatsapp ?? "";
   const loja = body.loja?.trim() ?? "";
-  // Só "demonstracao" abre o caminho curto; qualquer outro valor (ausente ou
-  // forjado) cai no fluxo de plano, que é o mais restritivo dos dois.
+  // Só "demonstracao" abre o caminho sem plano; qualquer outro valor (ausente
+  // ou forjado) cai no fluxo de assinatura, que é o mais restritivo dos dois.
   const isDemo = body.origem === "demonstracao";
 
   const plan = parsePlan(body.plan);
-  // Nome da loja é exigido nos DOIS fluxos: /inscricao passou a perguntar,
-  // igualando-se ao modal. Antes o campo era opcional no fluxo de plano e a
-  // equipe recebia o mesmo lead com informação diferente conforme a porta de
-  // entrada. Demonstração ignora plano; assinatura exige.
+  // Nome da loja é exigido nos DOIS fluxos, e o plano só no de assinatura —
+  // quem pede demonstração não escolheu plano nenhum.
   const camposBase =
     nome.length >= 2 &&
     EMAIL_RE.test(email) &&
@@ -126,107 +125,58 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Fluxo de demonstração: termina aqui ────────────────────────────────
-  // Sem OTP e sem sala de espera. Não existe cadastro para confirmar, então o
-  // aviso para a equipe é o único e o mais importante efeito da requisição —
-  // por isso, e só aqui, uma falha nele vira erro para quem enviou: se
-  // ninguém foi avisado, o pedido de demonstração simplesmente não existe.
-  if (isDemo) {
-    const avisado = await notifyNewLead({
-      nome,
-      email,
-      whatsapp,
-      loja,
-      origem: "demonstracao",
-    });
-
-    if (!avisado) {
-      return NextResponse.json(
-        {
-          error: "notify_failed",
-          message:
-            "Não conseguimos registrar seu pedido agora. Tente novamente em instantes ou fale com a gente no WhatsApp.",
-        },
-        { status: 502 }
-      );
+  // Fluxo de assinatura: guarda o lead para o Muro 1 (gateway de pagamento).
+  // É o registro que o webhook do gateway vai procurar pelo e-mail quando a
+  // cobrança fechada pelo consultor for paga.
+  //
+  // A falha aqui NÃO derruba a resposta: o aviso para a equipe (abaixo) é o
+  // que faz o lead existir na prática, e perder um lead quente porque o Redis
+  // piscou seria trocar a conversão por um detalhe de infraestrutura.
+  if (!isDemo && plan) {
+    try {
+      await saveSignupLead({
+        nome,
+        email,
+        whatsapp,
+        loja,
+        plan,
+        createdAt: Date.now(),
+      });
+    } catch (err) {
+      console.error("[signup-intent] falha ao guardar o lead no Redis:", err);
     }
-
-    return NextResponse.json({
-      ok: true,
-      stage: "received",
-      remaining,
-      message: "Pedido recebido! Um consultor entra em contato em até 1 dia útil.",
-    });
   }
 
-  // ── Fluxo de assinatura: segue para o Muro 2 ───────────────────────────
-  if (!plan) {
-    // Inalcançável: `camposOk` acima já rejeitou plano inválido fora do fluxo
-    // de demonstração. O guard existe porque o TypeScript não acompanha uma
-    // validação feita através de variável booleana, e é melhor reafirmar aqui
-    // do que assertar o tipo à força.
-    return NextResponse.json(
-      {
-        error: "missing_fields",
-        message: "Confira nome, e-mail, WhatsApp e plano antes de continuar.",
-      },
-      { status: 400 }
-    );
-  }
-
-  // Venceu os Muros 3 (Turnstile + rate limit) e os campos batem — abre o
-  // Muro 2: gera o OTP, guarda o lead na sala de espera por 15 min, dispara
-  // o e-mail. Se o Resend falhar, o lead FICA salvo (não se perde o dado só
-  // porque o e-mail não saiu) mas a resposta é de erro, porque sem o e-mail
-  // a pessoa não tem como avançar.
-  const otp = generateOtp();
-
-  await savePendingLead({
+  // O aviso para a equipe é o entregável dos dois fluxos: não existe mais
+  // nenhuma etapa depois desta requisição, então se ninguém foi avisado, o
+  // pedido simplesmente não aconteceu — daí ser o único ponto que pode
+  // derrubar a resposta.
+  const avisado = await notifyNewLead({
     nome,
     email,
     whatsapp,
     loja,
-    plan,
-    otp,
-    attempts: 0,
-    createdAt: Date.now(),
+    plan: isDemo ? undefined : (plan ?? undefined),
+    origem: isDemo ? "demonstracao" : "plano",
   });
 
-  try {
-    await sendOtpEmail(email, nome, otp);
-  } catch (err) {
-    console.error("[signup-intent] falha ao enviar e-mail de OTP:", err);
+  if (!avisado) {
     return NextResponse.json(
       {
-        error: "email_send_failed",
+        error: "notify_failed",
         message:
-          "Não conseguimos enviar o e-mail de verificação agora. Tente novamente em instantes.",
+          "Não conseguimos registrar seu pedido agora. Tente novamente em instantes ou fale com a gente no WhatsApp.",
       },
       { status: 502 }
     );
   }
 
-  // Lead válido e a caminho do OTP: avisa a equipe agora, não depois do
-  // código confirmado. Quem desiste na tela do OTP é justamente o lead que
-  // vale uma ligação, e sem este aviso ele sumia junto com o TTL do Redis.
-  // `notifyNewLead` não lança — o cadastro não pode falhar por causa do
-  // e-mail interno —, mas o await garante que o envio termine antes da
-  // função serverless ser congelada.
-  await notifyNewLead({
-    nome,
-    email,
-    whatsapp,
-    loja,
-    plan,
-    origem: "plano",
-  });
-
-  // TODO (Muro 1 — gateway de cobrança): entra depois que /api/verify-otp
-  // confirmar o código, não aqui.
   return NextResponse.json({
     ok: true,
-    stage: "otp",
+    stage: "received",
     remaining,
-    message: "Código enviado! Confira seu e-mail.",
+    message: isDemo
+      ? "Pedido recebido! Um consultor entra em contato em até 1 dia útil."
+      : "Pedido recebido! Um consultor entra em contato em até 1 dia útil para ativar sua loja.",
   });
 }
