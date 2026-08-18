@@ -1,20 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Sitemap da landing. Só entram URLs indexáveis: a home, que concentra todo o
-  conteúdo comercial, e /inscricao, que é a porta do funil de assinatura.
-  /checkout e /api/* ficam de fora (ver public/robots.txt).
+  Sitemap da landing. Só entram URLs indexáveis: hoje é só a home, que
+  concentra todo o conteúdo comercial e, desde a unificação do funil, também
+  o formulário de assinatura (modal). /inscricao saiu daqui junto com a
+  página — o caminho agora é um redirect 308 para /#planos (next.config.js),
+  e sitemap não é lugar de URL que redireciona. /checkout e /api/* seguem de
+  fora (ver public/robots.txt).
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://autogirodms.com.br/</loc>
-    <lastmod>2026-08-16</lastmod>
+    <lastmod>2026-08-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://autogirodms.com.br/inscricao</loc>
-    <lastmod>2026-08-16</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
   </url>
 </urlset>

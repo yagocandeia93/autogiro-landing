@@ -2,7 +2,7 @@
 
 **Repositório:** `yagocandeia93/autogiro-landing`
 **Produção:** `autogirodms.com.br` (Vercel) — separado do app principal `app.autogirodms.com.br` (Railway)
-**Data:** 16 de agosto de 2026 — *atualizado em 17 de agosto de 2026 (seção 6)*
+**Data:** 16 de agosto de 2026 — *atualizado em 18 de agosto de 2026 (seções 3, 4.2, 6 e 7)*
 **Referência:** atualiza o documento *Análise Técnica e Comercial — Landing Page AutoGiro DMS*
 
 ---
@@ -27,6 +27,8 @@ Dos 6 gargalos apontados na análise original, **4 foram resolvidos**, 1 foi par
 
 **Sprint seguinte (17/08, mesmo dia), branch `claude/autogiro-cleanup-seo-backend-mwgm6p`, aguardando revisão/merge:** fechou os itens **10 a 12** — Cabeçalho e Hero migraram para componentes React reais e SSR'd, fontes saíram do base64 embutido para arquivos `.woff2` cacheáveis. Detalhe de cada um, incluindo o porquê de a Calculadora e o restante da página **não** terem seguido junto, em [Resolvidos](#-resolvidos--17-de-agosto-de-2026-2).
 
+**Sprint de 18/08, branch `claude/subscription-funnel-refactor-rpiawy`:** mudança de estratégia de conversão, não correção de bug. O funil de assinatura deixou de ter página própria e verificação por código de e-mail: **os dois funis agora terminam no mesmo modal, sobre a landing, com o Turnstile como única barreira**. Detalhe em [Resolvidos](#-resolvidos--18-de-agosto-de-2026).
+
 ---
 
 ## 2. O que foi corrigido
@@ -43,6 +45,8 @@ Nenhuma chamada de rede. Nome, WhatsApp e faixa de estoque digitados eram descar
 
 **A correção, em duas etapas.** Primeiro os CTAs passaram a apontar para `/inscricao`, o funil real. Depois, por mudança de estratégia de conversão, passaram a abrir um **modal sobre a própria landing** — sem tirar o visitante da página.
 
+*(18/08: os botões de plano — "Assinar agora" e "Começar agora" — seguiram o mesmo caminho. Abrem o mesmo modal, com o plano vindo do botão clicado; `/inscricao` deixou de existir.)*
+
 O modal tem 4 campos obrigatórios: **Nome, E-mail, WhatsApp** (com máscara brasileira) e **Nome da loja**. Erro por campo, `aria-invalid`, limpeza ao corrigir, estado de `loading` no botão, mensagem de sucesso dentro do modal e fechamento automático em 5 s. Também: Escape, clique no backdrop, trava de scroll, foco inicial no primeiro campo, devolução de foco ao gatilho e trap de Tab.
 
 Foram removidos o formulário decorativo, o estado de envio falso, o timer e a tela de sucesso mentirosa.
@@ -53,7 +57,9 @@ Foram removidos o formulário decorativo, o estado de envio falso, o timer e a t
 
 O e-mail traz nome, loja, e-mail, WhatsApp, o interesse (demonstração ou plano) e um **botão de WhatsApp com a primeira mensagem já escrita**. O `replyTo` é o próprio lead. Destinatário configurável por `LEAD_NOTIFICATION_EMAIL`.
 
-**Decisão de projeto:** o fluxo de demonstração **não gera OTP**. Mandar "seu código de verificação" para quem pediu uma ligação é confuso, e não existe cadastro a confirmar. Como consequência, o e-mail de aviso é o **único registro** desse lead — e por isso, e só nesse fluxo, uma falha no envio virou erro para quem preencheu. `notifyNewLead` devolve booleano; o fluxo de assinatura ignora o retorno, porque lá o lead já está salvo no Redis.
+**Decisão de projeto:** o fluxo de demonstração **não gera OTP**. Mandar "seu código de verificação" para quem pediu uma ligação é confuso, e não existe cadastro a confirmar. Como consequência, o e-mail de aviso é o **único registro** desse lead — e por isso, e só nesse fluxo, uma falha no envio virou erro para quem preencheu.
+
+*(18/08: o OTP saiu do funil inteiro, então essa distinção acabou. Não existe mais etapa nenhuma depois do envio, nos dois funis — o aviso virou o entregável dos dois, e uma falha dele derruba a resposta em ambos.)*
 
 ### 2.3 SEO e Open Graph
 
@@ -95,8 +101,10 @@ Menu reordenado para seguir a ordem real da página: Calculadora / Estoque / CRM
 
 | Caminho | Gatilho | Fluxo |
 |---|---|---|
-| Demonstração | 4 CTAs (header, hero, calculadora, footer) | Modal → `POST /api/signup-intent` com `origem=demonstracao` → e-mail para a equipe |
-| Assinatura | "Assinar agora" / "Começar agora" | `/inscricao?plano=…` → OTP por e-mail → `/checkout` *(placeholder)* |
+| Demonstração | 4 CTAs (header, hero, calculadora, footer), `data-ag-demo` | Modal → `POST /api/signup-intent` com `origem=demonstracao` → e-mail para a equipe |
+| Assinatura | "Assinar agora" / "Começar agora", `data-ag-signup="BASICO\|PRO"` | **Mesmo modal** → `POST /api/signup-intent` com `origem=plano` + `plan` → lead no Redis + e-mail para a equipe → consultor fecha a assinatura |
+
+O caminho de assinatura passava por `/inscricao?plano=…` e por um código de 6 dígitos por e-mail antes de chegar a `/checkout` *(placeholder)*. Os dois passos saíram em 18/08 — a cobrança segue dependendo do gateway (item 1 da seção 6), mas agora nada mais separa o clique no plano do lead chegando à equipe.
 
 ---
 
@@ -110,7 +118,7 @@ O HTML real da landing mora dentro de `<script type="__bundler/template">` em `p
 
 ### 4.2 Por que o modal vive fora do bundle
 
-A lógica do modal está em **`public/demo-modal.js`**, um arquivo normal — legível, revisável e lintável. O bundle só ganhou `data-ag-demo` nos 4 CTAs e uma tag `<script>`.
+A lógica do modal está em **`public/lead-modal.js`** (até 18/08, `demo-modal.js`), um arquivo normal — legível, revisável e lintável. O bundle só ganhou `data-ag-demo` nos CTAs de demonstração, `data-ag-signup` nos dois botões de plano e uma tag `<script>`.
 
 Duas decisões vêm de como o bundle funciona, e ambas são obrigatórias:
 
@@ -146,8 +154,8 @@ Modal dirigido de ponta a ponta com Playwright em Chromium: abertura pelos 4 CTA
 | Rate limit (20 requisições) | **12× 429** com `Retry-After` |
 | `X-Forwarded-For` forjado | não contornou — a Vercel sobrescreve com o IP real |
 | Sem token / token forjado | **400 turnstile_failed** |
-| `index.html` e `demo-modal.js` | **byte a byte** iguais aos testados no navegador |
-| `/inscricao`, `/checkout`, `/og-image.png`, `/favicon.ico` | 200 |
+| `index.html` e `demo-modal.js` *(hoje `lead-modal.js`)* | **byte a byte** iguais aos testados no navegador |
+| `/inscricao`, `/checkout`, `/og-image.png`, `/favicon.ico` | 200 *(`/inscricao` hoje é 308 → `/#planos`)* |
 
 ### 5.3 Fluxo completo com token real
 
@@ -200,12 +208,24 @@ Todos no commit `a4d70c4` (PR #3). Validados com `npm run lint`, `npx tsc --noEm
 
 Sprint separada da anterior, mesmo dia. Todos validados com `npm run lint`, `npx tsc --noEmit` e `npm run build`, mais Playwright contra o dev server (interação real com a Calculadora, abertura do modal pelos CTAs novos e pelos que continuam no bundle, envio completo até "Pedido recebido", telas de 390 px e 1440 px, sem erro de console).
 
-10. ✅ **Duas fontes de verdade de UI** — Resolvido parcialmente, do jeito seguro. Cabeçalho e Hero saíram do bundle e viraram componentes React reais (`components/landing/Header.tsx`, `Hero.tsx`), com o mesmo conteúdo/estrutura extraídos byte a byte do template antigo. `Pricing.tsx` também virou componente e já está em uso de verdade em `/inscricao`. O resto (Calculadora, Estoque, CRM, Portais, Planos *na própria landing*, Legal, Footer) **continua** no bundle — e não por preguiça: o motor do bundle (`dc-runtime`, decodificado e lido linha a linha para esta migração) monta React sobre um único nó `<x-dc>` e RE-RENDERIZA A SUBÁRVORE INTEIRA a cada `setState` da Calculadora. `<x-dc>` só existe em um lugar do documento; fatiar mais alguma seção pra fora dele sem entender essa restrição quebraria a Calculadora na primeira interação. O comentário grande no topo de `public/legacy-mount.js` documenta isso para quem for continuar a migração.
+10. ✅ **Duas fontes de verdade de UI** — Resolvido parcialmente, do jeito seguro. Cabeçalho e Hero saíram do bundle e viraram componentes React reais (`components/landing/Header.tsx`, `Hero.tsx`), com o mesmo conteúdo/estrutura extraídos byte a byte do template antigo. `Pricing.tsx` também virou componente e já está em uso de verdade em `/inscricao`. *(18/08: `/inscricao` deixou de existir e o componente saiu junto — ver [Resolvidos](#-resolvidos--18-de-agosto-de-2026).)* O resto (Calculadora, Estoque, CRM, Portais, Planos *na própria landing*, Legal, Footer) **continua** no bundle — e não por preguiça: o motor do bundle (`dc-runtime`, decodificado e lido linha a linha para esta migração) monta React sobre um único nó `<x-dc>` e RE-RENDERIZA A SUBÁRVORE INTEIRA a cada `setState` da Calculadora. `<x-dc>` só existe em um lugar do documento; fatiar mais alguma seção pra fora dele sem entender essa restrição quebraria a Calculadora na primeira interação. O comentário grande no topo de `public/legacy-mount.js` documenta isso para quem for continuar a migração.
 11. ✅ **LCP depende de JavaScript** — Resolvido para a dobra acima. `app/page.tsx` deixou de ser um redirect para HTML estático: agora é uma página real do App Router, prerenderizada (○ no output do build). O HTML que chega no primeiro byte já contém a headline, o subtítulo e o CTA do Hero — confirmado via `curl`, sem depender de nenhum JavaScript rodar. O restante da página segue montando em runtime como antes.
 12. ✅ **Fontes em base64** — Resolvido. As 11 fontes (`Geist`/`Geist Mono`, 5 e 6 subsets) saíram do manifest embutido em base64 e viraram arquivos `.woff2` reais em `public/fonts/`, referenciados por `@font-face` em `app/globals.css` — cacheáveis separadamente do HTML, com preload dos subsets latin no `<head>`. O bundle legado (`public/legacy-content.html`) caiu de ~497 KB para ~252 KB só com essa remoção; o restante de peso das fontes (mais os 4 ícones do Header/Hero, extraídos como SVG reais em `public/icons/`) virou download único, cacheado à parte.
 13. **`.bak`** — sem mudança de status: seguiu confirmado, de novo, que o arquivo nunca esteve no Git. Nada a resolver por aqui.
 
 **Achado técnico registrado para quem mexer nisso de novo:** `<div dangerouslySetInnerHTML={{ __html: "" }} suppressHydrationWarning />` é obrigatório no container onde um script externo (`legacy-mount.js`) injeta DOM por fora do React — sem isso, o primeiro reconcile do React encontra filhos que não gerou e os apaga, entendendo como mismatch de hidratação. Documentado com o mesmo nível de detalhe em `app/page.tsx`.
+
+### ✅ Resolvidos — 18 de agosto de 2026
+
+Sprint de conversão (branch `claude/subscription-funnel-refactor-rpiawy`). Não fecha nenhum item numerado da seção 6: é mudança de estratégia de funil, decidida depois que os dois caminhos já estavam funcionando. Validada com `npm run lint` (0 erros), `npx tsc --noEmit`, `npm run build` e Playwright contra o dev server — modal aberto pelos dois botões de plano em 1280×900 e em 390×844 (iPhone 13), envio completo até "Pedido recebido", payload conferido (`plan`, `origem`), troca de funil sem recarregar a página, regressão do modal de demonstração e ausência de erros de console.
+
+- ✅ **Um modal só, na própria landing.** Os botões de plano abriam `/inscricao?plano=…`, uma página isolada. Agora abrem o mesmo modal dos CTAs de demonstração (`public/lead-modal.js`, renomeado de `demo-modal.js`), com os mesmos 4 campos (Nome, E-mail, WhatsApp, Nome da loja) e o mesmo padrão visual e de acessibilidade — Escape, backdrop, trap de Tab, devolução de foco. **O plano vem do botão clicado** (`data-ag-signup="BASICO|PRO"`), não de uma escolha repetida dentro do modal: quem clicou em "Começar agora" no card do Pro já escolheu. Todo o texto que depende do funil (eyebrow com plano e preço, título, subtítulo, rótulo do botão, aviso legal e a mensagem de sucesso) é reescrito a cada abertura, então abrir pelo Pro, fechar e reabrir pelo Básico mostra o conteúdo certo.
+- ✅ **Fim do código por e-mail (Muro 2).** `app/api/verify-otp` e a "sala de espera" de 15 min foram removidos, junto com `generateOtp`, `PendingLead`, o limitador próprio de tentativas e o e-mail de OTP em `lib/resend.ts`. O Turnstile continua sendo o que barra robô; o código provava posse do e-mail, garantia que ninguém consumia — quem fecha a venda é um consultor pelo WhatsApp. `lib/otpStore.ts` virou `lib/leadStore.ts` e guarda só o que o Muro 1 vai precisar: `signup-lead:{email}` com TTL de **7 dias** (não mais 24 h — a cobrança agora nasce depois do contato humano, que leva mais de um dia). O webhook de pagamento acompanhou o nome (`getSignupLead`, `SignupLead`).
+- ✅ **O aviso para a equipe virou o entregável dos dois funis.** Sem etapa nenhuma depois do envio, um Resend que falha significa que ninguém soube do pedido — então a rota devolve 502 nos dois fluxos, em vez de só no de demonstração. Já a gravação no Redis **não** derruba a resposta: perder um lead quente porque o Upstash piscou seria trocar conversão por infraestrutura. O e-mail perdeu a distinção de etapa (`intencao`/`verificado`, que não existe mais) e passou a distinguir só a origem: "Pedido de demonstração" ou "Lead novo: quer assinar", com a primeira mensagem do WhatsApp já escrita para cada caso.
+- ✅ **Copy da seção de Planos.** "Preço fechado por loja" → **"Preço fixo por loja"** ("fechado" podia ser lido como *pacote fechado*, o oposto do que a frase quer dizer). A lista do Pro passou a ancorar no Básico em vez de repetir o que ele já entrega: abre com **"Tudo do plano Básico, mais:"** em destaque e detalha os 5 diferenciais — acessos com controle de permissões, CRM em Kanban, repasse automático para múltiplos portais, mesa de crédito multibancos e suporte prioritário humano.
+- ✅ **Limpeza do que ficou órfão.** Saíram `app/inscricao`, `app/cadastro` (que só redirecionava para ela), `components/SignupForm.tsx`, `components/TurnstileWidget.tsx`, `components/landing/Pricing.tsx`, `lib/phoneMask.ts` e as regras de CSS que só existiam para eles. `/inscricao` e `/cadastro` viraram **redirects 308 para `/#planos`** (`next.config.js`): os caminhos ainda vivem em anúncios e no histórico de quem já visitou, e devolver 404 ali perderia justamente o lead que já vinha assinar. `sitemap.xml` perdeu a entrada de `/inscricao`.
+
+**Sobre o `Pricing.tsx` removido:** ele era a versão React dos cards de plano, extraída do bundle na sprint anterior (item 10), e o único lugar que a usava de verdade era `/inscricao`. Com a página fora, ele viraria uma segunda cópia da lista de benefícios, sem ninguém renderizando — exatamente o problema que o item 10 aponta. A seção de Planos que o visitante vê continua vindo do bundle, e agora é a única fonte dessa copy. Quando a migração do bundle avançar, o componente volta do histórico (`git show ea1b3b2:components/landing/Pricing.tsx`).
 
 ---
 
@@ -215,10 +235,10 @@ Sprint separada da anterior, mesmo dia. Todos validados com `npm run lint`, `npx
 
 | Variável | Papel | Se faltar |
 |---|---|---|
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | rate limit + sala de espera do OTP | **500** — lança primeiro |
+| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | rate limit + registro do lead para o Muro 1 | **500** — lança primeiro |
 | `TURNSTILE_SECRET_KEY` | verificação anti-bot no servidor | **500** em produção |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | widget na landing (via `/api/turnstile-config`) | widget não renderiza → **400** por falta de token |
-| `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | OTP e aviso de lead novo | **500**; no fluxo de demonstração, erro para o visitante |
+| `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | aviso de lead novo (único entregável do funil) | **500**; sem o aviso, erro para o visitante nos dois fluxos |
 | `LEAD_NOTIFICATION_EMAIL` | caixa que recebe o aviso | usa `yagocandeia93@gmail.com` |
 | `PAYMENT_GATEWAY` + chaves | Muro 1 | `/checkout` segue placeholder |
 
@@ -244,6 +264,6 @@ curl -s https://autogirodms.com.br/api/turnstile-config
 
 ## 8. Reconhecimento do que já era bom
 
-A arquitetura de segurança do funil é mais madura que a camada de apresentação era. Os "3 Muros" — rate limit com Upstash, Turnstile verificado no servidor, OTP com `randomInt` do `node:crypto` e limite próprio de tentativas, e verificação de assinatura de webhook com idempotência via `Redis SET NX` — estão acima do que a maioria das landings de SaaS early-stage implementa. O gargalo nunca foi robustez de backend: era ligação entre as partes e ausência de conteúdo comercial.
+A arquitetura de segurança do funil é mais madura que a camada de apresentação era. Os "3 Muros" — rate limit com Upstash, Turnstile verificado no servidor, OTP com `randomInt` do `node:crypto` e limite próprio de tentativas, e verificação de assinatura de webhook com idempotência via `Redis SET NX` — estavam acima do que a maioria das landings de SaaS early-stage implementa. *(O Muro 2, o OTP, foi retirado em 18/08 — não por ser frágil, mas por cobrar do visitante uma garantia que o negócio não usava; ver [Resolvidos](#-resolvidos--18-de-agosto-de-2026).)* O gargalo nunca foi robustez de backend: era ligação entre as partes e ausência de conteúdo comercial.
 
 No design, também já estavam corretos: breakpoints cobrindo 1150/1100/1024/900/620 px, tratamento de `prefers-reduced-motion`, `font-display: swap` em todas as `@font-face`, um único `<h1>`, semântica de `<nav>`/`<footer>`/`<article>` e ícones decorativos fora da árvore de acessibilidade.

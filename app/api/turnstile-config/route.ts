@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
-// A landing (public/index.html) é o bundle do Claude Design servido estático,
-// sem passar por build do Next — então ela não tem como receber
+// O modal de captura de lead (public/lead-modal.js) é JavaScript servido
+// estático, sem passar pelo build do Next — então ele não tem como receber
 // NEXT_PUBLIC_TURNSTILE_SITE_KEY inlinada como um componente React recebe.
-// Este endpoint entrega a chave em runtime para o modal de demonstração.
+// Este endpoint entrega a chave em runtime, para os dois funis do modal
+// (assinatura e demonstração).
 //
 // Expor isso é seguro: a site key é pública por definição (aparece no HTML de
 // qualquer página que use Turnstile). O que protege o funil é a

@@ -39,8 +39,7 @@ const limiterCache = new Map<string, Ratelimit | InMemoryRateLimiter>();
 
 /**
  * Fábrica genérica de rate limiter, com um prefixo próprio por rota (cada
- * rota tem seu próprio contador — tentativas de OTP não competem com
- * tentativas de signup-intent). `windowLabel` é o formato do Upstash
+ * rota tem seu próprio contador). `windowLabel` é o formato do Upstash
  * ("10 m", "15 m"); `windowMs` é o mesmo período em ms, pro fallback local.
  */
 function getLimiter(
@@ -84,16 +83,6 @@ function getLimiter(
 /** 3 tentativas / 10 min / IP — envio dos dados iniciais (nome, e-mail, WhatsApp). */
 export function getSignupRateLimiter() {
   return getLimiter("signup-intent", 3, "10 m", 10 * 60 * 1000);
-}
-
-/**
- * 5 tentativas / 15 min / e-mail — validação do código OTP. Um código de 6
- * dígitos tem só 1 milhão de combinações; sem limitar tentativas aqui, o
- * Turnstile do passo anterior não impede alguém de tentar adivinhar o
- * código à vontade dentro da janela de 15 minutos em que ele vale.
- */
-export function getOtpVerifyRateLimiter() {
-  return getLimiter("verify-otp", 5, "15 m", 15 * 60 * 1000);
 }
 
 /** IP do cliente a partir dos headers que a Vercel injeta. */

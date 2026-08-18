@@ -8,11 +8,10 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
 
 - **A landing, dividida em duas partes** (migração de 17/08 — docs/STATUS.md,
   itens 10 e 11):
-  - `app/page.tsx` + `components/landing/{Header,Hero,Pricing}.tsx` —
-    Cabeçalho e Hero (a dobra acima) são componentes React reais, SSR'd pelo
-    Next. O HTML que chega no primeiro byte já tem a headline, o subtítulo e
-    o CTA — sem esperar JavaScript rodar. `Pricing` também virou componente
-    de verdade e é reaproveitado em `/inscricao`.
+  - `app/page.tsx` + `components/landing/{Header,Hero,Legal,Footer,TrustBadges}.tsx`
+    — Cabeçalho e Hero (a dobra acima) são componentes React reais, SSR'd
+    pelo Next. O HTML que chega no primeiro byte já tem a headline, o
+    subtítulo e o CTA — sem esperar JavaScript rodar.
   - `public/legacy-content.html` + `public/legacy-mount.js` — o restante
     (Calculadora, Estoque, CRM, Portais, Planos na própria landing, Legal,
     Footer) continua vindo do bundle estático exportado pelo Claude Design
@@ -24,49 +23,57 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
     resto não puderam seguir o mesmo caminho do Cabeçalho/Hero sem arriscar
     quebrar essa reatividade. Antes de tentar migrar mais alguma seção,
     leia o comentário grande no topo de `legacy-mount.js`.
-  - Os botões da seção de Planos (`href="/inscricao?plano=…"`) e os CTAs
-    "Agendar demonstração" (`data-ag-demo`, abrindo o modal de
-    `public/demo-modal.js`) existem nas duas partes — o contrato é o mesmo
-    atributo/href dos dois lados, não uma lógica duplicada.
-- `app/api/signup-intent` — **Muro 3 (Defesa Anti-Abuso)**: rate limit (3
-  tentativas / 10 min / IP, via Upstash Redis) + verificação server-side do
-  Cloudflare Turnstile + validação de nome/e-mail/WhatsApp. Não cria loja nem
-  cobra ninguém ainda — só prova que as barreiras funcionam de ponta a ponta.
-- `app/inscricao` — formulário real de captura (Nome, E-mail, WhatsApp com
-  máscara `(99) 99999-9999`), pra onde os botões dos planos levam. Valida os
-  3 campos no navegador antes de sequer olhar pro Turnstile; o widget roda
-  em paralelo enquanto a pessoa digita, então na prática o token já está
-  pronto quando ela termina. Mostra "Aguarde..." no botão durante o envio, e
-  mensagens amigáveis específicas para limite de tentativas (429) e falha do
-  Turnstile. Componente principal: `components/SignupForm.tsx`.
-- **Por que página nova em vez de modal dentro do próprio HTML**: o
-  `public/index.html` não é uma página comum — é renderizado por um motor de
-  template próprio embutido no bundle (diretivas `sc-if`, `sc-raw-select`
-  etc.), incompatível com componentes React. Construir o formulário como
-  página Next.js de verdade (`/inscricao`) foi a forma segura de fazer os
-  3 campos + máscara + Turnstile + tratamento de erro funcionarem de verdade,
-  sem arriscar quebrar o motor de template do design original.
-
-- `app/api/verify-otp` — **Muro 2 (Validação de E-mail)**: recebe e-mail +
-  código de 6 dígitos, confere contra a "sala de espera" no Redis
-  (`lib/otpStore.ts`), com rate limit próprio (5 tentativas / 15 min, por
-  e-mail E por IP — um código de 6 dígitos só tem 1 milhão de combinações,
-  então essa rota precisa do próprio limite, não só o do Turnstile). Acerta →
-  o lead vira `verified-lead:{email}` no Redis (TTL 24 h), pronto pro Muro
-  1, e a equipe recebe o segundo aviso por e-mail ("e-mail confirmado", o
-  lead mais quente do funil). Erra → conta a tentativa contra o lead; 5
-  erradas apaga o código e pede pra recomeçar.
-- **Estratégia "sala de espera"** (`lib/otpStore.ts`): nada disso cria linha
-  no banco do AutoGiro. `signup-intent` gera o OTP (`node:crypto.randomInt`,
-  não `Math.random` — é um código de segurança) e guarda
-  `{ nome, email, whatsapp, loja, plano, otp, attempts }` no Redis por 15 min, e
-  dispara o e-mail via Resend (`lib/resend.ts`). Sem `RESEND_API_KEY` em dev,
-  o código é só impresso no console — não precisa de conta no Resend pra
-  testar o fluxo localmente.
-- `app/inscricao` agora tem duas etapas: o formulário (Nome/E-mail/WhatsApp +
-  Turnstile) e, depois do envio, a tela de código OTP. Errar o e-mail digitado
-  tem um link pra voltar; código expirado ou tentativas esgotadas mandam de
-  volta pro formulário automaticamente.
+  - Todos os CTAs de conversão abrem o **mesmo modal**
+    (`public/lead-modal.js`), e o contrato é um atributo só, igual nas duas
+    partes: `data-ag-signup="BASICO|PRO"` nos botões da seção de Planos
+    ("Assinar agora" / "Começar agora") e `data-ag-demo` nos CTAs de
+    "Agendar demonstração". O clique é capturado por delegação no
+    `document`, porque o runtime do bundle re-renderiza a própria subárvore
+    a cada `setState` da Calculadora e mataria um listener preso no botão.
+- `app/api/signup-intent` — **Muro 3 (Defesa Anti-Abuso)**, e hoje a única
+  rota do funil: rate limit (3 tentativas / 10 min / IP, via Upstash Redis) +
+  verificação server-side do Cloudflare Turnstile + validação de
+  nome/e-mail/WhatsApp/loja (e do plano, no funil de assinatura). Atende os
+  dois funis do modal (`origem=plano` e `origem=demonstracao`), avisa a
+  equipe pelo Resend e, no funil de assinatura, guarda o lead no Redis para o
+  Muro 1. Não cria loja nem cobra ninguém ainda.
+- `public/lead-modal.js` — **o funil inteiro, em um modal na própria
+  landing**. Captura Nome, E-mail, WhatsApp (com máscara `(99) 99999-9999`) e
+  Nome da loja; o plano vem do botão clicado, não de uma escolha repetida
+  dentro do modal. Valida os campos no navegador antes de sequer olhar pro
+  Turnstile; o widget carrega em paralelo desde a abertura, e se o token
+  ainda não chegou quando a pessoa envia, o modal espera em vez de falhar.
+  Trata 429 (limite de tentativas), falha do Turnstile e queda de conexão com
+  mensagens próprias. É um arquivo estático, servido fora do build do Next —
+  daí `/api/turnstile-config`, que entrega a site key em runtime.
+- **Por que modal, e por que em arquivo separado**: a página isolada
+  (`/inscricao`) tirava o visitante da landing no momento de maior intenção;
+  o modal mantém a decisão na mesma tela, com o mesmo padrão visual do modal
+  de demonstração que já existia. Ele não pôde virar componente React porque
+  o miolo da landing ainda é o bundle exportado do Claude Design, renderizado
+  por um motor de template próprio (diretivas `sc-if`, `sc-raw-select` etc.)
+  incompatível com React — e o modal precisa viver **fora** de `<x-dc>`, ou
+  um re-render da Calculadora o apagaria no meio do preenchimento.
+- **Sem código por e-mail (o antigo Muro 2)**: existiam `/api/verify-otp`,
+  uma "sala de espera" de 15 min no Redis e um código de 6 dígitos entre o
+  formulário e o fim do funil. Isso saiu inteiro. O Turnstile é o que barra
+  robô; o código provava posse do e-mail, garantia que ninguém consumia,
+  porque quem fecha a venda é um consultor pelo WhatsApp — e cada passo a
+  mais (sair da landing, esperar o e-mail, achar o código, voltar, digitar)
+  custava lead. Hoje o envio termina em um passo só, e o aviso para a equipe
+  é o entregável: se o Resend falhar, a rota devolve erro, porque sem aviso
+  o pedido não existe para ninguém. `/inscricao` e `/cadastro` viraram
+  redirects 308 para `/#planos` (`next.config.js`) — os caminhos ainda vivem
+  em anúncios e no histórico de quem já visitou, e um 404 ali perderia
+  justamente o lead que já vinha assinar.
+- **O que fica guardado** (`lib/leadStore.ts`): nada disso cria linha no
+  banco do AutoGiro. O funil de assinatura grava
+  `{ nome, email, whatsapp, loja, plan }` como `signup-lead:{email}` no Redis
+  (TTL 7 dias) — é o registro que o webhook do gateway vai procurar quando a
+  cobrança for paga. Falha de Redis ali **não** derruba a resposta: perder um
+  lead quente porque o Upstash piscou seria trocar conversão por
+  infraestrutura. O funil de demonstração não grava nada; o e-mail para a
+  equipe é o único registro dele.
 
 - **Muro 1 (Pagamento) — estrutura pronta, gateway ainda não escolhido:**
   - `lib/checkout.ts` — `createCheckoutLink(lead)`: hoje devolve um link
@@ -81,7 +88,7 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
     escolhe pela env `PAYMENT_GATEWAY`. Sem o segredo configurado, a rota
     recusa tudo (falha fechada, não aberta).
   - **Idempotência**: gateways reenviam o mesmo evento em retry.
-    `claimWebhookEvent` (Redis `SET NX`, `lib/otpStore.ts`) garante que um
+    `claimWebhookEvent` (Redis `SET NX`, `lib/leadStore.ts`) garante que um
     evento só processa uma vez — sem isso, um retry duplicaria o
     provisionamento e o e-mail de "acesso liberado".
   - **O gatilho final é mock, de propósito**: `triggerProvisioning()`
@@ -99,14 +106,14 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
   app principal foi desenhado de propósito para NENHUM papel enxergar entre
   lojas. Precisa de `/plan` próprio no repo do AutoGiro antes de
   implementar essa chamada de verdade.
-- **TTL do `verified-lead` (24 h) vs. tempo real de pagamento**: eram 30 min,
-  curtos demais — PIX gerado à noite é pago na manhã seguinte e cartão
-  recusado costuma ter retry manual horas depois, então o webhook chegava
-  sem achar o lead e alguém que **já tinha pago** era descartado em
-  silêncio. Com 24 h a janela cobre o comportamento real; se o pagamento
-  confirmar mesmo assim depois disso, o webhook (corretamente) não acha o
-  lead e loga erro. Reavaliar de novo quando o gateway estiver ligado e o
-  tempo real de conversão for conhecido.
+- **TTL do `signup-lead` (7 dias) vs. tempo real de pagamento**: eram 30 min,
+  depois 24 h, sempre medidos a partir de um checkout que abria na mesma
+  sessão. Com o fim do código por e-mail, o funil termina com um consultor
+  entrando em contato em até 1 dia útil e a cobrança nasce **depois** dessa
+  conversa — uma janela de 24 h expiraria o registro antes do primeiro
+  contato, e o webhook chegaria sem achar quem provisionar. Reavaliar quando
+  o gateway estiver ligado e o tempo real entre contato e pagamento for
+  conhecido.
 
 ## Rodando local
 
@@ -116,10 +123,12 @@ cp .env.example .env.local   # preencha as chaves do Turnstile, Upstash e Resend
 npm run dev
 ```
 
-Sem `UPSTASH_REDIS_REST_URL`/`TOKEN`: cai num rate limiter (e numa sala de
-espera) em memória — só para dev, avisa no console, e **é perdido a cada
-restart do servidor**. Sem `TURNSTILE_SECRET_KEY`: aceita qualquer token em
-dev. Sem `RESEND_API_KEY`: não envia e-mail, só imprime o OTP no terminal.
+Sem `UPSTASH_REDIS_REST_URL`/`TOKEN`: cai num rate limiter (e num
+armazenamento de leads) em memória — só para dev, avisa no console, e **é
+perdido a cada restart do servidor**. Sem `TURNSTILE_SECRET_KEY`: aceita
+qualquer token em dev. Sem `RESEND_API_KEY`: não envia e-mail, só imprime o
+aviso de lead no terminal — dá para testar o modal inteiro sem conta no
+Resend.
 **Em produção (`NODE_ENV=production`), as três faltando derrubam a rota com
 erro — de propósito, para não subir sem proteção real.**
 
