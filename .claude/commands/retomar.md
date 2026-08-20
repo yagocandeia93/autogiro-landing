@@ -141,6 +141,14 @@ Confira sempre 390px e 360px de largura, e um `pageerror`/`console.error` zerado
   `npm run onboard:loja`, rodado à mão. Virar isso num endpoint interno é
   decisão de RBAC e precisa de `/plan` próprio **no outro repositório** antes de
   sair do papel — `triggerProvisioning()` no webhook só imprime um log.
+- **As âncoras do menu passam por baixo do Header.** Desde que a fixação no topo
+  voltou (21/08), os links do menu (`#calculadora`, `#estoque`, `#crm`,
+  `#portais`, `#planos`) rolam com 68px de cabeçalho ocupando o topo, então o
+  título da seção de destino pode ficar parcialmente encoberto. A correção é
+  `scroll-margin-top` nas seções-alvo, **não** no Header — mexer no Header
+  mudaria o layout do menu. Cuidado: as seções do miolo moram no bundle
+  (`public/legacy-content.html`), então a regra precisa vir de `app/globals.css`
+  por seletor de id, não de um style inline dentro do bundle.
 - **O resumo do checkout deixou de ser `position: sticky`** para as duas colunas
   terminarem na mesma linha. É reversível numa linha de
   `components/checkout/checkout.module.css` se a rolagem incomodar mais que o
