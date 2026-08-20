@@ -138,7 +138,7 @@ export default async function CheckoutPage({
               ))}
             </ul>
 
-            <div className={styles.divider} />
+            <div className={`${styles.divider} ${styles.dividerPush}`} />
 
             <ul className={styles.trustList}>
               {GARANTIAS.map((g) => (

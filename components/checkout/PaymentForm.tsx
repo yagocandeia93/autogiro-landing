@@ -250,7 +250,7 @@ export function PaymentForm({ plan }: { plan: PlanId }) {
 
   return (
     <>
-      <section className={styles.card} aria-labelledby="pagamento-titulo">
+      <section className={`${styles.card} ${styles.payment}`} aria-labelledby="pagamento-titulo">
         <h2 className={styles.formTitle} id="pagamento-titulo">
           Forma de pagamento
         </h2>
