@@ -91,11 +91,17 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
     TODOs comentados (chamada real ao Asaas e ao Pagar.me) prontos pra
     descomentar assim que a chave existir — a assinatura da função não muda.
   - `app/checkout` — a **interface** do checkout, construída antes do gateway:
-    resumo do pedido (plano, preço, "7 dias grátis, cancele quando quiser"),
-    formulário de cartão com validação real (Luhn, validade, CVV por bandeira)
-    e selos de segurança. **Não cobra ninguém**: o envio abre um aviso dizendo
-    que a cobrança está sendo configurada e que o consultor conclui pelo
-    WhatsApp. Quando a chave existir, o que muda é o `onSubmit` do formulário.
+    resumo do pedido (plano, preço, "7 dias grátis, cancele quando quiser") e
+    duas abas de forma de pagamento. **Cartão** (padrão) tem validação real
+    (Luhn, validade, CVV por bandeira); **Pix** é um estado ilustrativo — QR
+    desfocado e "o QR Code será gerado na próxima etapa" —, porque o payload do
+    Pix é assinado pelo gateway, não por nós, e um código nítido só convidaria
+    alguém a tentar pagar. Os dois painéis ficam montados ao mesmo tempo, então
+    quem espia o Pix no meio do preenchimento não perde o cartão já digitado.
+    **Não cobra ninguém**: os dois caminhos abrem o mesmo aviso, dizendo que a
+    cobrança está sendo configurada e que o consultor conclui pelo WhatsApp.
+    Quando a chave existir, o que muda é o `onSubmit`/`simularEnvio` do
+    formulário.
   - `lib/plans.ts` — nome, preço e itens dos dois planos em um lugar só, que é
     o que `lib/checkout.ts` e a página de checkout leem. Os textos em
     `public/` (bundle e modal) seguem com a cópia própria: são estáticos,

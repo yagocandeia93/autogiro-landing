@@ -67,6 +67,25 @@
   text-decoration: none;
 }
 
+/*
+ * A marca é pintada como MÁSCARA sobre o âmbar, não servida como imagem.
+ * public/icons/logo-mark.svg é um traçado `stroke="currentColor"`, e um
+ * <img> não herda cor de CSS: dentro da tag ela resolvia para o preto padrão
+ * do SVG, ou seja, um borrão invisível em cima do #0a0e14. É a mesma técnica
+ * que o cabeçalho e o rodapé da landing já usavam (components/landing/
+ * Header.tsx), então o desenho fica idêntico nas duas telas e continua nítido
+ * em qualquer densidade de tela — coisa que um PNG de 26px não faz.
+ */
+.brandMark {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #f5a524;
+  -webkit-mask: url(/icons/logo-mark.svg) center / 22px no-repeat;
+  mask: url(/icons/logo-mark.svg) center / 22px no-repeat;
+}
+
 .brandName {
   font-size: 15.5px;
   font-weight: 600;
@@ -279,6 +298,61 @@
   color: #7c8899;
 }
 
+/* ── abas de forma de pagamento ───────────────────────────────────────── */
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 16px 0 22px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: #0a0e14;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: #94a1b5;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    color 0.18s,
+    border-color 0.18s;
+}
+
+.tab:hover {
+  color: #c7d0dc;
+}
+
+.tab[aria-selected="true"] {
+  border-color: rgba(245, 165, 36, 0.45);
+  background: rgba(245, 165, 36, 0.1);
+  color: #f5a524;
+  font-weight: 600;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.panelTitle {
+  margin: 0 0 4px;
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 /* ── pré-visualização do cartão ───────────────────────────────────────── */
 
 .cardPreview {
@@ -480,6 +554,71 @@
   color: #e9edf3;
 }
 
+/* ── painel do Pix (estado ilustrativo) ───────────────────────────────── */
+
+.pixBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 24px 26px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: #111823;
+  text-align: center;
+}
+
+/*
+ * O QR sai desfocado de propósito: é a forma de dizer "o código nasce aqui"
+ * sem oferecer um código que ninguém consegue pagar. Alguém tentaria ler um
+ * QR nítido com a câmera.
+ */
+.pixQrWrap {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pixQr {
+  width: 104px;
+  height: 104px;
+  color: #b3bdcc;
+  opacity: 0.5;
+  filter: blur(2.5px);
+}
+
+.pixQrWrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 45%, rgba(245, 165, 36, 0.14), rgba(245, 165, 36, 0) 72%);
+  pointer-events: none;
+}
+
+.pixTitle {
+  margin: 0 0 8px;
+  max-width: 34ch;
+  /* Sem isto a frase quebra deixando "etapa." sozinha na segunda linha. */
+  text-wrap: balance;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #e9edf3;
+}
+
+.pixText {
+  margin: 0;
+  max-width: 44ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #94a1b5;
+}
+
 /* ── aviso de pagamento em configuração ───────────────────────────────── */
 
 .toast {
@@ -597,6 +736,11 @@
   .fieldRow {
     gap: 10px;
   }
+  .tab {
+    gap: 6px;
+    padding: 11px 6px;
+    font-size: 13px;
+  }
   .toast {
     right: 12px;
     left: 12px;
@@ -606,6 +750,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
   .toast {
     animation: none;
   }

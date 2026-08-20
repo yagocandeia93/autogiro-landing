@@ -62,8 +62,7 @@ export default async function CheckoutPage({
       <div className={styles.shell}>
         <header className={styles.topbar}>
           <Link href="/" className={styles.brand}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icons/logo-mark.svg" alt="" width={26} height={26} />
+            <span className={styles.brandMark} aria-hidden />
             <span className={styles.brandName}>AutoGiro DMS</span>
           </Link>
           <span className={styles.secureTag}>
