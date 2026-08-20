@@ -39,6 +39,12 @@ Duas consequências práticas:
 - **Não fatie o bundle sem ler o comentário no topo de `legacy-mount.js`.** A
   Calculadora tem estado reativo e re-renderiza a subárvore inteira a cada
   `setState`, o que mataria qualquer listener preso num botão lá dentro.
+- **O runtime do bundle injeta CSS global que não existe como texto no repo**:
+  `html,body{height:100%;margin:0}` mais regras em `#dc-root`. Nenhum `grep`
+  encontra — é o script minificado que monta a folha em runtime. Foi o que
+  matou o `sticky` do Header (ver `docs/STATUS.md`, 4.4). Para depurar estilo
+  global que "não vem de lugar nenhum", use o CDP
+  (`CSS.getMatchedStylesForNode` + `CSS.getStyleSheetText`), não o grep.
 
 `public/lead-modal.js` é JS estático servido de `public/`, **fora da árvore de
 módulos do Next** — não há router para importar, daí o `window.location.assign`
@@ -61,9 +67,10 @@ fundo `#0a0e14`, borda `rgba(255,255,255,.14)`, foco `border-color:#f5a524` +
 
 A marca é `public/Logo.png` (256×256, transparente), servida por `next/image`
 nas três telas — cabeçalho e rodapé da landing e cabeçalho do checkout.
-`public/icons/logo-mark.svg` é o ícone genérico que ela substituiu e hoje está
-sem uso; ele é um traçado `stroke="currentColor"`, então dentro de um `<img>`
-renderiza preto (foi exatamente esse o bug da logo invisível).
+O ícone genérico que ela substituiu (`public/icons/logo-mark.svg`, o `rotate-3d`
+do Lucide) foi deletado em 21/08. Ele era um traçado `stroke="currentColor"`, que
+dentro de um `<img>` renderiza preto — foi exatamente esse o bug da logo
+invisível; se ressuscitar esse padrão em algum lugar, o sintoma é esse.
 
 ## O funil, hoje
 
@@ -141,7 +148,6 @@ Confira sempre 390px e 360px de largura, e um `pageerror`/`console.error` zerado
 - **TTL de 7 dias do `signup-lead`** foi calibrado para um funil em que o
   consultor liga em até 1 dia útil. Reavaliar quando o tempo real entre contato
   e pagamento for conhecido.
-- **`public/icons/logo-mark.svg` está sem uso** desde a unificação da marca.
 - **`AutoGiro-DMS-Landing-Page.html.bak`** na raiz é cópia de trabalho do upload
   original, já no `.gitignore`.
 

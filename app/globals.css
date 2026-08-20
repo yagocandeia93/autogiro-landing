@@ -398,6 +398,30 @@ body {
   overflow-x: clip;
 }
 
+/*
+ * Devolve o `position: sticky` do Header. O runtime do bundle legado injeta,
+ * em tempo de execução, uma folha própria com `html,body{height:100%}` — ela
+ * não existe como texto em public/legacy-content.html, vem minificada dentro
+ * do script do bundler, por isso não aparece em nenhum grep do repositório.
+ *
+ * Com o body travado em 100% da viewport, o Header (que virou filho direto do
+ * body quando saiu do bundle para React) grudava só até o fim do retângulo do
+ * pai: passados ~800px de rolagem ele descolava e sumia, apesar do
+ * `position: sticky` estar corretamente aplicado. Sticky é sempre relativo ao
+ * retângulo do pai, então a altura do body é que precisava voltar a crescer
+ * com o conteúdo.
+ *
+ * `:root` (0,1,0) e `:root > body` (0,1,1) vencem o `html,body` (0,0,1) da
+ * folha injetada por especificidade, e não por ordem de carregamento — o que
+ * importa aqui, já que a folha do runtime entra depois desta. Preferido a
+ * `!important`, que deixaria a regra sem saída se algum layout futuro
+ * precisar de um body de altura fixa.
+ */
+:root,
+:root > body {
+  height: auto;
+}
+
 a {
   color: var(--ag-brand);
 }
