@@ -4,14 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { PLANS, TRIAL_DAYS, type PlanId } from "@/lib/plans";
 import { waLink } from "@/lib/whatsapp";
 import styles from "./checkout.module.css";
-import { IconCheck, IconLock, IconWhatsApp } from "./icons";
+import { IconCheck, IconCreditCard, IconLock, IconPix, IconWhatsApp } from "./icons";
 
 /**
- * Formulário de cartão do checkout. É a CASCA VISUAL: nenhum dado digitado sai
- * do navegador. Não existe fetch, não existe rota de API de pagamento, e o
- * gateway (Asaas ou Pagar.me — ver lib/checkout.ts) ainda não tem chave. Ao
- * enviar, a página só abre um aviso dizendo que a cobrança está sendo
- * configurada e que um consultor conclui pelo WhatsApp.
+ * Área de pagamento do checkout, com duas abas: cartão de crédito (padrão) e
+ * Pix. É a CASCA VISUAL: nenhum dado digitado sai do navegador. Não existe
+ * fetch, não existe rota de API de pagamento, e o gateway (Asaas ou Pagar.me —
+ * ver lib/checkout.ts) ainda não tem chave. Os dois caminhos terminam no mesmo
+ * aviso, dizendo que a cobrança está sendo configurada e que um consultor
+ * conclui pelo WhatsApp.
+ *
+ * A aba do Pix é um estado ilustrativo de propósito: gerar QR Code de verdade
+ * exige o gateway (o payload do Pix é assinado por ele, não por nós), então em
+ * vez de inventar um código que não paga nada, a tela mostra o lugar onde ele
+ * vai nascer. O `<svg>` do QR é decorativo e desenhado por uma função
+ * determinística — precisa dar o MESMO desenho no servidor e no cliente, ou o
+ * React acusa divergência de hidratação.
  *
  * Por que validar de verdade um formulário que não processa nada: a validação
  * é o que faz a tela parecer (e ser) um checkout real para quem testa o funil
@@ -108,7 +116,46 @@ function expiryError(value: string): string {
 
 type FieldName = "numero" | "titular" | "validade" | "cvv";
 
+type Metodo = "cartao" | "pix";
+
+const METODOS = [
+  { id: "cartao", label: "Cartão de crédito", Icone: IconCreditCard },
+  { id: "pix", label: "Pix", Icone: IconPix },
+] as const satisfies readonly { id: Metodo; label: string; Icone: (p: { size?: number }) => React.ReactElement }[];
+
+/** Módulos de um QR fictício: nada aqui codifica valor, chave ou payload. */
+function QrIlustrativo() {
+  const N = 21;
+  const noFinder = (x: number, y: number) =>
+    (x < 8 && y < 8) || (x > N - 9 && y < 8) || (x < 8 && y > N - 9);
+
+  const modulos = [];
+  for (let y = 0; y < N; y += 1) {
+    for (let x = 0; x < N; x += 1) {
+      if (noFinder(x, y)) continue;
+      if ((x * 7 + y * 13 + x * y * 3) % 11 < 5) {
+        modulos.push(<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" />);
+      }
+    }
+  }
+
+  const finder = (x: number, y: number) => (
+    <g key={`f${x}-${y}`}>
+      <rect x={x + 0.5} y={y + 0.5} width="6" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
+      <rect x={x + 2} y={y + 2} width="3" height="3" />
+    </g>
+  );
+
+  return (
+    <svg viewBox="0 0 21 21" className={styles.pixQr} fill="currentColor" aria-hidden>
+      {modulos}
+      {[finder(0, 0), finder(14, 0), finder(0, 14)]}
+    </svg>
+  );
+}
+
 export function PaymentForm({ plan }: { plan: PlanId }) {
+  const [metodo, setMetodo] = useState<Metodo>("cartao");
   const [numero, setNumero] = useState("");
   const [titular, setTitular] = useState("");
   const [validade, setValidade] = useState("");
@@ -117,6 +164,7 @@ export function PaymentForm({ plan }: { plan: PlanId }) {
   const [enviando, setEnviando] = useState(false);
   const [avisoAberto, setAvisoAberto] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const tabsRef = useRef<(HTMLButtonElement | null)[]>([]);
 
   const digits = onlyDigits(numero);
   const brand = detectBrand(digits);
@@ -158,20 +206,41 @@ export function PaymentForm({ plan }: { plan: PlanId }) {
     return Object.keys(next).length === 0;
   }
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  /**
+   * O desfecho dos DOIS métodos. Nenhuma requisição sai daqui: o tempo de
+   * espera existe só para o botão não piscar. Quando o gateway entrar, é este
+   * trecho que se divide — tokenizar o cartão de um lado, pedir o QR Code do
+   * Pix do outro.
+   */
+  function simularEnvio() {
     if (enviando) return;
-    if (!validar()) return;
-
-    // Nenhuma requisição sai daqui. O tempo de espera existe só para o botão
-    // não piscar — quando o gateway entrar, é este trecho que vira a
-    // tokenização do cartão.
     setEnviando(true);
     schedule(() => {
       setEnviando(false);
       setAvisoAberto(true);
       schedule(() => setAvisoAberto(false), AUTO_DISMISS_MS);
     }, 700);
+  }
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (enviando) return;
+    if (!validar()) return;
+    simularEnvio();
+  }
+
+  /**
+   * Setas navegam entre as abas e o Tab sai do grupo (roving tabindex) — é o
+   * que o padrão de tabs da WAI-ARIA espera, e o que o <dialog> nativo das
+   * políticas da landing entrega de graça mas aqui precisa ser escrito.
+   */
+  function onTabKeyDown(e: React.KeyboardEvent, indice: number) {
+    const passo = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!passo) return;
+    e.preventDefault();
+    const proximo = (indice + passo + METODOS.length) % METODOS.length;
+    setMetodo(METODOS[proximo].id);
+    tabsRef.current[proximo]?.focus();
   }
 
   const dados = PLANS[plan];
@@ -182,137 +251,216 @@ export function PaymentForm({ plan }: { plan: PlanId }) {
   return (
     <>
       <section className={styles.card} aria-labelledby="pagamento-titulo">
-        {/* Espelho do que está sendo digitado: confere de relance se o número
-            e a validade batem com o cartão na mão. */}
-        <div className={styles.cardPreview} aria-hidden>
-          <div className={styles.cardChip} />
-          <p className={styles.cardNumber}>
-            {groupDigits(digits, brand.groups) || "•••• •••• •••• ••••"}
-          </p>
-          <div className={styles.cardMeta}>
-            <div>
-              <p className={styles.cardMetaLabel}>Titular</p>
-              <p className={styles.cardMetaValue}>{titular || "NOME NO CARTÃO"}</p>
-            </div>
-            <div>
-              <p className={styles.cardMetaLabel}>Validade</p>
-              <p className={styles.cardMetaValue}>{validade || "MM/AA"}</p>
-            </div>
-            <span className={styles.cardBrand}>{brand.name}</span>
-          </div>
+        <h2 className={styles.formTitle} id="pagamento-titulo">
+          Forma de pagamento
+        </h2>
+
+        <div className={styles.tabs} role="tablist" aria-label="Forma de pagamento">
+          {METODOS.map((m, i) => (
+            <button
+              key={m.id}
+              type="button"
+              role="tab"
+              id={`ck-tab-${m.id}`}
+              aria-selected={metodo === m.id}
+              aria-controls={`ck-painel-${m.id}`}
+              tabIndex={metodo === m.id ? 0 : -1}
+              ref={(el) => {
+                tabsRef.current[i] = el;
+              }}
+              className={styles.tab}
+              onClick={() => setMetodo(m.id)}
+              onKeyDown={(e) => onTabKeyDown(e, i)}
+            >
+              <m.Icone size={16} />
+              {m.label}
+            </button>
+          ))}
         </div>
 
-        <h2 className={styles.formTitle} id="pagamento-titulo">
-          Dados do cartão
-        </h2>
-        <p className={styles.formSub}>
-          Usamos o cartão apenas para confirmar sua identidade e manter a assinatura
-          ativa depois do teste. Nada é cobrado nos primeiros {TRIAL_DAYS} dias.
-        </p>
-
-        <form onSubmit={onSubmit} noValidate>
-          <div className={`${styles.field} ${styles.fieldMono}`}>
-            <label htmlFor="ck-numero">Número do cartão</label>
-            <input
-              id="ck-numero"
-              name="cardnumber"
-              inputMode="numeric"
-              autoComplete="cc-number"
-              placeholder="0000 0000 0000 0000"
-              value={groupDigits(digits, brand.groups)}
-              aria-invalid={errors.numero ? true : undefined}
-              aria-describedby="ck-err-numero"
-              onChange={(e) => {
-                const proximos = onlyDigits(e.target.value).slice(0, brand.maxDigits);
-                setNumero(proximos);
-                clearError("numero");
-              }}
-            />
-            <span className={styles.error} id="ck-err-numero" aria-live="polite">
-              {errors.numero}
-            </span>
-          </div>
-
-          <div className={styles.field}>
-            <label htmlFor="ck-titular">Nome impresso no cartão</label>
-            <input
-              id="ck-titular"
-              name="ccname"
-              autoComplete="cc-name"
-              placeholder="Como está escrito no cartão"
-              value={titular}
-              aria-invalid={errors.titular ? true : undefined}
-              aria-describedby="ck-err-titular"
-              onChange={(e) => {
-                setTitular(e.target.value.replace(/[^\p{L}\s.'-]/gu, ""));
-                clearError("titular");
-              }}
-            />
-            <span className={styles.error} id="ck-err-titular" aria-live="polite">
-              {errors.titular}
-            </span>
-          </div>
-
-          <div className={styles.fieldRow}>
-            <div className={`${styles.field} ${styles.fieldMono}`}>
-              <label htmlFor="ck-validade">Validade</label>
-              <input
-                id="ck-validade"
-                name="cc-exp"
-                inputMode="numeric"
-                autoComplete="cc-exp"
-                placeholder="MM/AA"
-                value={validade}
-                aria-invalid={errors.validade ? true : undefined}
-                aria-describedby="ck-err-validade"
-                onChange={(e) => {
-                  setValidade(maskExpiry(e.target.value));
-                  clearError("validade");
-                }}
-              />
-              <span className={styles.error} id="ck-err-validade" aria-live="polite">
-                {errors.validade}
-              </span>
-            </div>
-
-            <div className={`${styles.field} ${styles.fieldMono}`}>
-              <label htmlFor="ck-cvv">CVV</label>
-              <input
-                id="ck-cvv"
-                name="cvc"
-                inputMode="numeric"
-                autoComplete="cc-csc"
-                placeholder={brand.cvvLength === 4 ? "0000" : "000"}
-                value={cvv}
-                aria-invalid={errors.cvv ? true : undefined}
-                aria-describedby="ck-err-cvv"
-                onChange={(e) => {
-                  setCvv(onlyDigits(e.target.value).slice(0, brand.cvvLength));
-                  clearError("cvv");
-                }}
-              />
-              <span className={styles.error} id="ck-err-cvv" aria-live="polite">
-                {errors.cvv}
-              </span>
+        {/* Os dois painéis ficam montados o tempo todo, escondidos por
+            `hidden`: quem digitou meio cartão, espiou o Pix e voltou não
+            perde o que já tinha preenchido. */}
+        <div
+          className={styles.panel}
+          id="ck-painel-cartao"
+          role="tabpanel"
+          aria-labelledby="ck-tab-cartao"
+          hidden={metodo !== "cartao"}
+        >
+          {/* Espelho do que está sendo digitado: confere de relance se o número
+              e a validade batem com o cartão na mão. */}
+          <div className={styles.cardPreview} aria-hidden>
+            <div className={styles.cardChip} />
+            <p className={styles.cardNumber}>
+              {groupDigits(digits, brand.groups) || "•••• •••• •••• ••••"}
+            </p>
+            <div className={styles.cardMeta}>
+              <div>
+                <p className={styles.cardMetaLabel}>Titular</p>
+                <p className={styles.cardMetaValue}>{titular || "NOME NO CARTÃO"}</p>
+              </div>
+              <div>
+                <p className={styles.cardMetaLabel}>Validade</p>
+                <p className={styles.cardMetaValue}>{validade || "MM/AA"}</p>
+              </div>
+              <span className={styles.cardBrand}>{brand.name}</span>
             </div>
           </div>
 
-          <button type="submit" className={styles.submit} disabled={enviando}>
+          <h3 className={styles.panelTitle}>Dados do cartão</h3>
+          <p className={styles.formSub}>
+            Usamos o cartão apenas para confirmar sua identidade e manter a assinatura
+            ativa depois do teste. Nada é cobrado nos primeiros {TRIAL_DAYS} dias.
+          </p>
+
+          <form onSubmit={onSubmit} noValidate>
+            <div className={`${styles.field} ${styles.fieldMono}`}>
+              <label htmlFor="ck-numero">Número do cartão</label>
+              <input
+                id="ck-numero"
+                name="cardnumber"
+                inputMode="numeric"
+                autoComplete="cc-number"
+                placeholder="0000 0000 0000 0000"
+                value={groupDigits(digits, brand.groups)}
+                aria-invalid={errors.numero ? true : undefined}
+                aria-describedby="ck-err-numero"
+                onChange={(e) => {
+                  const proximos = onlyDigits(e.target.value).slice(0, brand.maxDigits);
+                  setNumero(proximos);
+                  clearError("numero");
+                }}
+              />
+              <span className={styles.error} id="ck-err-numero" aria-live="polite">
+                {errors.numero}
+              </span>
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="ck-titular">Nome impresso no cartão</label>
+              <input
+                id="ck-titular"
+                name="ccname"
+                autoComplete="cc-name"
+                placeholder="Como está escrito no cartão"
+                value={titular}
+                aria-invalid={errors.titular ? true : undefined}
+                aria-describedby="ck-err-titular"
+                onChange={(e) => {
+                  setTitular(e.target.value.replace(/[^\p{L}\s.'-]/gu, ""));
+                  clearError("titular");
+                }}
+              />
+              <span className={styles.error} id="ck-err-titular" aria-live="polite">
+                {errors.titular}
+              </span>
+            </div>
+
+            <div className={styles.fieldRow}>
+              <div className={`${styles.field} ${styles.fieldMono}`}>
+                <label htmlFor="ck-validade">Validade</label>
+                <input
+                  id="ck-validade"
+                  name="cc-exp"
+                  inputMode="numeric"
+                  autoComplete="cc-exp"
+                  placeholder="MM/AA"
+                  value={validade}
+                  aria-invalid={errors.validade ? true : undefined}
+                  aria-describedby="ck-err-validade"
+                  onChange={(e) => {
+                    setValidade(maskExpiry(e.target.value));
+                    clearError("validade");
+                  }}
+                />
+                <span className={styles.error} id="ck-err-validade" aria-live="polite">
+                  {errors.validade}
+                </span>
+              </div>
+
+              <div className={`${styles.field} ${styles.fieldMono}`}>
+                <label htmlFor="ck-cvv">CVV</label>
+                <input
+                  id="ck-cvv"
+                  name="cvc"
+                  inputMode="numeric"
+                  autoComplete="cc-csc"
+                  placeholder={brand.cvvLength === 4 ? "0000" : "000"}
+                  value={cvv}
+                  aria-invalid={errors.cvv ? true : undefined}
+                  aria-describedby="ck-err-cvv"
+                  onChange={(e) => {
+                    setCvv(onlyDigits(e.target.value).slice(0, brand.cvvLength));
+                    clearError("cvv");
+                  }}
+                />
+                <span className={styles.error} id="ck-err-cvv" aria-live="polite">
+                  {errors.cvv}
+                </span>
+              </div>
+            </div>
+
+            <button type="submit" className={styles.submit} disabled={enviando}>
+              {enviando ? (
+                "Confirmando..."
+              ) : (
+                <>
+                  <IconLock size={16} />
+                  Finalizar pagamento
+                </>
+              )}
+            </button>
+
+            <p className={styles.formLegal}>
+              Conexão criptografada. Você pode cancelar dentro dos {TRIAL_DAYS} dias sem
+              pagar nada.
+            </p>
+          </form>
+        </div>
+
+        <div
+          className={styles.panel}
+          id="ck-painel-pix"
+          role="tabpanel"
+          aria-labelledby="ck-tab-pix"
+          hidden={metodo !== "pix"}
+        >
+          <div className={styles.pixBox}>
+            <div className={styles.pixQrWrap}>
+              <QrIlustrativo />
+            </div>
+            <p className={styles.pixTitle}>
+              O QR Code do Pix será gerado na próxima etapa.
+            </p>
+            <p className={styles.pixText}>
+              Nada é cobrado agora — são {TRIAL_DAYS} dias de teste antes da primeira
+              cobrança. Ao gerar, você recebe o QR Code e o código copia e cola, e a
+              confirmação do plano {dados.label} é na hora.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className={styles.submit}
+            onClick={simularEnvio}
+            disabled={enviando}
+          >
             {enviando ? (
-              "Confirmando..."
+              "Gerando..."
             ) : (
               <>
-                <IconLock size={16} />
-                Finalizar pagamento
+                <IconPix size={16} />
+                Gerar Pix
               </>
             )}
           </button>
 
           <p className={styles.formLegal}>
-            Conexão criptografada. Você pode cancelar dentro dos {TRIAL_DAYS} dias sem
-            pagar nada.
+            A confirmação é automática assim que o Pix é pago. Você pode cancelar
+            dentro dos {TRIAL_DAYS} dias sem pagar nada.
           </p>
-        </form>
+        </div>
       </section>
 
       {avisoAberto && (

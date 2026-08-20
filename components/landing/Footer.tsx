@@ -1,3 +1,4 @@
+import Image from "next/image";
 import styles from "./landing.module.css";
 import { WA_LINK_SUPORTE } from "@/lib/whatsapp";
 
@@ -40,23 +41,12 @@ export function Footer() {
       <div className={styles.footerGrid} style={{ maxWidth: 1400, margin: "0 auto", gap: 40 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <span
-              aria-hidden="true"
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 7,
-                background: "#f5a524",
-                display: "block",
-                WebkitMaskImage: "url(/icons/logo-mark.svg)",
-                maskImage: "url(/icons/logo-mark.svg)",
-                WebkitMaskSize: "19px",
-                maskSize: "19px",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-                maskPosition: "center",
-              }}
+            <Image
+              src="/Logo.png"
+              alt=""
+              width={22}
+              height={22}
+              style={{ display: "block" }}
             />
             <span style={{ fontSize: 15, fontWeight: 700 }}>AutoGiro DMS</span>
           </div>

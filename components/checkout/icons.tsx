@@ -84,3 +84,27 @@ export function IconWhatsApp({ size = 15 }: IconProps) {
     </svg>
   );
 }
+
+/**
+ * Aproximação do losango do Pix (o mark oficial é um arquivo da marca, que não
+ * está neste repositório). Serve para identificar a aba de um mockup, não para
+ * reproduzir a marca registrada — quando o gateway entrar e o Pix for real,
+ * troque por `public/icons/pix.svg` da identidade do Banco Central.
+ */
+export function IconPix({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M12 2.9 21.1 12 12 21.1 2.9 12z" />
+      <path d="M8.5 8.5 12 12l3.5-3.5M8.5 15.5 12 12l3.5 3.5" />
+    </svg>
+  );
+}
+
+export function IconCreditCard({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+      <path d="M2.5 10h19M6 15h3" />
+    </svg>
+  );
+}
