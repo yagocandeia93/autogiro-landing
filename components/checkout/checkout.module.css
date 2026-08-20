@@ -107,11 +107,18 @@
 
 /* ── grade principal ──────────────────────────────────────────────────── */
 
+/*
+ * `stretch` (o padrão do grid) em vez de `align-items: start`: os dois cards
+ * são filhos diretos da grade, então terminam na mesma linha sem precisar de
+ * altura em nenhum dos dois. Qual coluna é a mais alta muda conforme a aba e
+ * o plano — Cartão puxa a direita, Pix puxa a esquerda —, e o degrau aparecia
+ * nos dois sentidos.
+ */
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .card {
@@ -121,9 +128,20 @@
   padding: clamp(20px, 3vw, 28px);
 }
 
+/*
+ * Era `position: sticky`, para o resumo acompanhar a rolagem do formulário.
+ * Sticky e altura igual não convivem: esticado até o pé da grade, o card
+ * ocupa a linha inteira e não tem para onde deslizar. A simetria ganhou.
+ */
 .summary {
-  position: sticky;
-  top: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+
+.payment {
+  display: flex;
+  flex-direction: column;
 }
 
 .eyebrow {
@@ -208,6 +226,15 @@
   height: 1px;
   margin: 22px 0;
   background: rgba(255, 255, 255, 0.08);
+}
+
+/*
+ * Ancora os selos no pé do card quando sobra altura. Precisa vir DEPOIS de
+ * `.divider`, cujo atalho `margin: 22px 0` reescreveria o `margin-top: auto`
+ * — mesma especificidade, quem vem por último ganha.
+ */
+.dividerPush {
+  margin-top: auto;
 }
 
 .row {
@@ -336,6 +363,23 @@
   background: rgba(245, 165, 36, 0.1);
   color: #f5a524;
   font-weight: 600;
+}
+
+/*
+ * O painel visível é quem cresce dentro do card de pagamento — `[hidden]`
+ * tira o outro da conta, e a especificidade de classe+atributo vence o
+ * `display: flex` daqui.
+ */
+.panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.panel form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .panel[hidden] {
@@ -499,7 +543,7 @@
   justify-content: center;
   gap: 9px;
   width: 100%;
-  margin-top: 8px;
+  margin-top: auto;
   padding: 14px;
   border: none;
   border-radius: 10px;
@@ -554,8 +598,11 @@
 
 .pixBox {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
   padding: 30px 24px 26px;
   border: 1px dashed rgba(255, 255, 255, 0.16);
   border-radius: 12px;
@@ -722,9 +769,6 @@
 @media (max-width: 900px) {
   .grid {
     grid-template-columns: 1fr;
-  }
-  .summary {
-    position: static;
   }
 }
 
