@@ -26,7 +26,10 @@ export function Header() {
       style={{
         position: "sticky",
         top: 0,
-        zIndex: 40,
+        // Acima de tudo que rola por baixo, e deliberadamente abaixo do modal
+        // de lead (z-index 9000 em public/lead-modal.js): o cabeçalho não pode
+        // atravessar a janela aberta em cima dele.
+        zIndex: 50,
         height: 68,
         display: "flex",
         alignItems: "center",

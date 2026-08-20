@@ -135,6 +135,20 @@ A landing é servida estática, sem build do Next, então **não recebe `NEXT_PU
 
 Em `lib/turnstile.ts`, a checagem da secret passou para **antes** da checagem do token: em dev sem Turnstile o widget não renderiza e não existe token, o que tornava o formulário impossível de testar localmente. Produção não afrouxa — sem a secret a função lança, então o caminho real sempre exige token e verificação no Cloudflare.
 
+### 4.4 O runtime do bundle injeta CSS global que não existe no repositório
+
+O runtime do Claude Design, minificado dentro do script do bundler em `public/legacy-content.html`, insere a própria folha de estilo em tempo de execução:
+
+```css
+html,body{height:100%;margin:0}#dc-root,#dc-root>.sc-host{height:100%}
+```
+
+**Essa regra não aparece em nenhum `grep` do repositório** — não existe como texto, é construída pelo script. Foi o que quebrou o `position: sticky` do Header (21/08): com o `<body>` travado em 100% da viewport, e o Header agora sendo filho direto do body (ele saiu do bundle para React na migração do item 11), o sticky grudava só até o fim do retângulo do pai — passados ~800px de rolagem o cabeçalho descolava e sumia, embora o `position: sticky` estivesse aplicado corretamente o tempo todo. Sticky é sempre relativo ao retângulo do **pai**, nunca à viewport.
+
+A correção mora em `app/globals.css`: `:root, :root > body { height: auto; }`. Vence a folha injetada por **especificidade** (`:root` é 0,1,0 contra 0,0,1 de `html`), não por ordem de carregamento — o que importa aqui, porque a folha do runtime entra depois da do Next.
+
+Ao depurar qualquer estilo global que "não vem de lugar nenhum", vá pelo CDP em vez do grep: `CSS.getMatchedStylesForNode` seguido de `CSS.getStyleSheetText` mostra a folha real e sua origem. `document.styleSheets` não basta — parte do CSS do bundle está fora do alcance dele.
+
 ---
 
 ## 5. Validação executada

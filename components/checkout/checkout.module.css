@@ -68,11 +68,12 @@
 }
 
 /*
- * A marca oficial, em public/Logo.png. Antes vinha de
- * public/icons/logo-mark.svg dentro de um <img>, e como aquele arquivo é um
- * traçado `stroke="currentColor"`, a cor não era herdada dentro da tag: ela
- * resolvia para o preto padrão do SVG, um borrão invisível em cima do
- * #0a0e14. O PNG já é âmbar, então o problema não se repete — e vai por
+ * A marca oficial, em public/Logo.png. Antes vinha de um ícone genérico do
+ * Lucide (o antigo public/icons/logo-mark.svg, já removido) dentro de um
+ * <img>, e como aquele arquivo era um traçado `stroke="currentColor"`, a cor
+ * não era herdada dentro da tag: ela resolvia para o preto padrão do SVG, um
+ * borrão invisível em cima do #0a0e14. O PNG já é âmbar, então o problema
+ * não se repete — e vai por
  * next/image, que reduz e converte para WebP em vez de mandar o arquivo
  * inteiro para um selo de 26px.
  */
