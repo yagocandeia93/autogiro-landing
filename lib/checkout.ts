@@ -1,10 +1,6 @@
 import type { SignupLead } from "@/lib/leadStore";
 import { currentGateway } from "@/lib/webhookSignature";
-
-const PLAN_PRICE_CENTS: Record<SignupLead["plan"], number> = {
-  BASICO: 29900,
-  PRO: 49900,
-};
+import { PLANS } from "@/lib/plans";
 
 /**
  * Cria a sessão de checkout no gateway escolhido e devolve a URL de
@@ -19,7 +15,7 @@ const PLAN_PRICE_CENTS: Record<SignupLead["plan"], number> = {
  */
 export async function createCheckoutLink(lead: SignupLead): Promise<string> {
   const gateway = currentGateway();
-  const amountCents = PLAN_PRICE_CENTS[lead.plan];
+  const amountCents = PLANS[lead.plan].priceCents;
 
   if (gateway === "asaas") {
     // TODO (sexta, com a chave do Asaas):
@@ -46,8 +42,10 @@ export async function createCheckoutLink(lead: SignupLead): Promise<string> {
   }
 
   // Placeholder até as chaves existirem: manda pra página de checkout local
-  // (app/checkout), que hoje só explica que o pagamento ainda não está
-  // ligado — em vez de quebrar o fluxo de ponta a ponta.
+  // (app/checkout) — o mesmo destino para onde public/lead-modal.js manda quem
+  // envia o formulário na landing. A página mostra o resumo do plano e o
+  // formulário de cartão, e diz na cara que a cobrança ainda está sendo
+  // configurada, em vez de quebrar o fluxo de ponta a ponta.
   const params = new URLSearchParams({ email: lead.email, plano: lead.plan });
   return `/checkout?${params.toString()}`;
 }

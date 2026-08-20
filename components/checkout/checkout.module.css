@@ -1,0 +1,615 @@
+/*
+ * Estilos da página de checkout (/checkout). Diferente do restante da landing
+ * — que carrega estilo inline vindo do bundle exportado do Claude Design —
+ * aqui é CSS de verdade, em módulo: a página tem :hover, :focus-visible,
+ * :disabled, ::placeholder e três breakpoints, e nada disso existe como
+ * atributo inline.
+ *
+ * A paleta é a mesma do resto do site, sem tom novo: fundo #0a0e14,
+ * superfícies #0e141d/#111823, texto #e9edf3 com apoios #c7d0dc/#94a1b5/
+ * #7c8899, âmbar #f5a524 (hover #ffb640, texto sobre âmbar #1b1305), erro
+ * #f87171, bordas em rgba(255,255,255,.09→.16). Raios 10px em controles e
+ * 14px em cards, iguais aos dos cards de Planos e do modal de lead.
+ */
+
+.page {
+  position: relative;
+  min-height: 100vh;
+  background: #0a0e14;
+  color: #e9edf3;
+  font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+
+/*
+ * Único elemento decorativo da página: um halo âmbar bem baixo atrás do topo,
+ * para o checkout não parecer uma tela de sistema solta, sem parentesco com a
+ * landing. Fica atrás de tudo e não recebe clique.
+ */
+.glow {
+  position: absolute;
+  top: -260px;
+  left: 50%;
+  width: 900px;
+  height: 520px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(245, 165, 36, 0.13), rgba(245, 165, 36, 0) 68%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px clamp(16px, 4vw, 32px) 72px;
+}
+
+/* ── topo ─────────────────────────────────────────────────────────────── */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 26px;
+  margin-bottom: 30px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #e9edf3;
+  text-decoration: none;
+}
+
+.brandName {
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.secureTag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #c7d0dc;
+  white-space: nowrap;
+}
+
+.secureTag svg {
+  color: #6ee7a8;
+}
+
+/* ── grade principal ──────────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.card {
+  background: #0e141d;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: clamp(20px, 3vw, 28px);
+}
+
+.summary {
+  position: sticky;
+  top: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f5a524;
+}
+
+.planHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.planName {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.planPrice {
+  font-family: "Geist Mono", monospace;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.planPrice span {
+  font-family: "Geist", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  color: #94a1b5;
+}
+
+.planTagline {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  color: #94a1b5;
+}
+
+/* Faixa do teste grátis — o gatilho da página, então ganha o âmbar. */
+.trial {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 20px 0 0;
+  padding: 13px 15px;
+  border: 1px solid rgba(245, 165, 36, 0.4);
+  border-radius: 10px;
+  background: rgba(245, 165, 36, 0.08);
+}
+
+.trial svg {
+  flex: none;
+  margin-top: 1px;
+  color: #f5a524;
+}
+
+.trialText {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #f7d9a4;
+}
+
+.trialText small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: #c9a877;
+}
+
+.divider {
+  height: 1px;
+  margin: 22px 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.row + .row {
+  margin-top: 11px;
+}
+
+.rowLabel {
+  color: #94a1b5;
+}
+
+.rowValue {
+  font-family: "Geist Mono", monospace;
+  font-size: 14px;
+  color: #c7d0dc;
+}
+
+.rowTotal .rowLabel {
+  font-family: "Geist", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #e9edf3;
+}
+
+.rowTotal .rowValue {
+  font-size: 19px;
+  font-weight: 600;
+  color: #f5a524;
+}
+
+.featureList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #c7d0dc;
+}
+
+.feature svg {
+  flex: none;
+  margin-top: 3px;
+  color: #6ee7a8;
+}
+
+.featureLead {
+  color: #f5a524;
+  font-weight: 600;
+}
+
+.trustList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trustItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #7c8899;
+}
+
+.trustItem svg {
+  flex: none;
+  color: #7c8899;
+}
+
+/* ── pré-visualização do cartão ───────────────────────────────────────── */
+
+.cardPreview {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: #111823;
+}
+
+.cardPreview::after {
+  content: "";
+  position: absolute;
+  top: -90px;
+  right: -70px;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(245, 165, 36, 0.16), rgba(245, 165, 36, 0) 70%);
+  pointer-events: none;
+}
+
+.cardChip {
+  width: 34px;
+  height: 24px;
+  border-radius: 5px;
+  background: linear-gradient(140deg, #d8a94a, #8a6a24);
+}
+
+.cardNumber {
+  margin: 20px 0 16px;
+  font-family: "Geist Mono", monospace;
+  font-size: clamp(15px, 3.4vw, 18px);
+  letter-spacing: 0.08em;
+  color: #e9edf3;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cardMetaLabel {
+  margin: 0 0 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b7889;
+}
+
+.cardMetaValue {
+  margin: 0;
+  font-family: "Geist Mono", monospace;
+  font-size: 13px;
+  color: #c7d0dc;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 24ch;
+}
+
+.cardBrand {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #94a1b5;
+  white-space: nowrap;
+}
+
+/* ── formulário ───────────────────────────────────────────────────────── */
+
+.formTitle {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.formSub {
+  margin: 0 0 22px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #94a1b5;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 15px;
+}
+
+.field label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #b3bdcc;
+}
+
+.field input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: #0a0e14;
+  color: #e9edf3;
+  font: inherit;
+  font-size: 14.5px;
+}
+
+.field input::placeholder {
+  color: #6b7889;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: #f5a524;
+  box-shadow: 0 0 0 3px rgba(245, 165, 36, 0.15);
+}
+
+.field input[aria-invalid="true"] {
+  border-color: #f87171;
+}
+
+.fieldMono input {
+  font-family: "Geist Mono", monospace;
+  letter-spacing: 0.04em;
+}
+
+.error {
+  min-height: 0;
+  font-size: 12px;
+  color: #f87171;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: #f5a524;
+  color: #1b1305;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    transform 0.12s;
+}
+
+.submit:hover:not(:disabled) {
+  background: #ffb640;
+}
+
+.submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.submit:disabled {
+  opacity: 0.68;
+  cursor: progress;
+}
+
+.formLegal {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #7c8899;
+  text-align: center;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 26px;
+  color: #94a1b5;
+  font-size: 13.5px;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.backLink:hover {
+  color: #e9edf3;
+}
+
+/* ── aviso de pagamento em configuração ───────────────────────────────── */
+
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: flex;
+  gap: 12px;
+  width: min(400px, calc(100vw - 32px));
+  padding: 16px 18px;
+  border: 1px solid rgba(245, 165, 36, 0.45);
+  border-radius: 12px;
+  background: #111823;
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.95);
+  animation: toastIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.toastIcon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(245, 165, 36, 0.45);
+  border-radius: 50%;
+  background: rgba(245, 165, 36, 0.14);
+  color: #f5a524;
+}
+
+.toastTitle {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.toastText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #94a1b5;
+}
+
+.toastAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  color: #e9edf3;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.toastAction:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.toastClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #7c8899;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.toastClose:hover {
+  color: #e9edf3;
+}
+
+/* ── responsivo ───────────────────────────────────────────────────────── */
+
+/*
+ * Mesmo ponto de corte em que a landing colapsa a grade de Planos (900px):
+ * abaixo dele o resumo do pedido vai para cima do formulário — quem chega
+ * pelo celular precisa ver o que está contratando antes de digitar o cartão —
+ * e deixa de ser sticky, senão colaria no topo cobrindo o próprio formulário.
+ */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .summary {
+    position: static;
+  }
+}
+
+@media (max-width: 520px) {
+  .fieldRow {
+    gap: 10px;
+  }
+  .toast {
+    right: 12px;
+    left: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+  .submit {
+    transition: none;
+  }
+}
