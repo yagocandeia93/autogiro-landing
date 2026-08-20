@@ -68,22 +68,18 @@
 }
 
 /*
- * A marca é pintada como MÁSCARA sobre o âmbar, não servida como imagem.
- * public/icons/logo-mark.svg é um traçado `stroke="currentColor"`, e um
- * <img> não herda cor de CSS: dentro da tag ela resolvia para o preto padrão
- * do SVG, ou seja, um borrão invisível em cima do #0a0e14. É a mesma técnica
- * que o cabeçalho e o rodapé da landing já usavam (components/landing/
- * Header.tsx), então o desenho fica idêntico nas duas telas e continua nítido
- * em qualquer densidade de tela — coisa que um PNG de 26px não faz.
+ * A marca oficial, em public/Logo.png. Antes vinha de
+ * public/icons/logo-mark.svg dentro de um <img>, e como aquele arquivo é um
+ * traçado `stroke="currentColor"`, a cor não era herdada dentro da tag: ela
+ * resolvia para o preto padrão do SVG, um borrão invisível em cima do
+ * #0a0e14. O PNG já é âmbar, então o problema não se repete — e vai por
+ * next/image, que reduz e converte para WebP em vez de mandar o arquivo
+ * inteiro para um selo de 26px.
  */
 .brandMark {
   display: block;
   width: 26px;
   height: 26px;
-  border-radius: 8px;
-  background: #f5a524;
-  -webkit-mask: url(/icons/logo-mark.svg) center / 22px no-repeat;
-  mask: url(/icons/logo-mark.svg) center / 22px no-repeat;
 }
 
 .brandName {

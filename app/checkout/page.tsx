@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { PLANS, TRIAL_DAYS, parsePlan } from "@/lib/plans";
 import { PaymentForm } from "@/components/checkout/PaymentForm";
@@ -62,7 +63,17 @@ export default async function CheckoutPage({
       <div className={styles.shell}>
         <header className={styles.topbar}>
           <Link href="/" className={styles.brand}>
-            <span className={styles.brandMark} aria-hidden />
+            {/* alt vazio de propósito: o nome da marca vem escrito ao lado, e
+                repeti-lo faria o leitor de tela anunciar "AutoGiro DMS" duas
+                vezes seguidas no mesmo link. */}
+            <Image
+              src="/Logo.png"
+              alt=""
+              width={26}
+              height={26}
+              className={styles.brandMark}
+              priority
+            />
             <span className={styles.brandName}>AutoGiro DMS</span>
           </Link>
           <span className={styles.secureTag}>
