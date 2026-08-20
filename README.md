@@ -26,7 +26,7 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
   - Todos os CTAs de conversão abrem o **mesmo modal**
     (`public/lead-modal.js`), e o contrato é um atributo só, igual nas duas
     partes: `data-ag-signup="BASICO|PRO"` nos botões da seção de Planos
-    ("Assinar agora" / "Começar agora") e `data-ag-demo` nos CTAs de
+    ("Testar 7 dias grátis" / "Começar 7 dias grátis") e `data-ag-demo` nos CTAs de
     "Agendar demonstração". O clique é capturado por delegação no
     `document`, porque o runtime do bundle re-renderiza a própria subárvore
     a cada `setState` da Calculadora e mataria um listener preso no botão.
@@ -46,6 +46,16 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
   Trata 429 (limite de tentativas), falha do Turnstile e queda de conexão com
   mensagens próprias. É um arquivo estático, servido fora do build do Next —
   daí `/api/turnstile-config`, que entrega a site key em runtime.
+- **Depois do 200 OK, os dois funis se separam**: quem pediu demonstração vê a
+  confirmação e a janela fecha sozinha (não há para onde ir — o consultor é
+  que liga); quem escolheu um plano é REDIRECIONADO para
+  `/checkout?plano=BASICO|PRO`, levando a intenção até a tela de pagamento em
+  vez de terminar a jornada dentro do modal. O redirect usa
+  `window.location.assign` porque este arquivo vive fora da árvore de módulos
+  do Next (não há router para importar), tem timer próprio — fechar a janela
+  não cancela a navegação de quem já enviou os dados — e o painel de sucesso
+  ainda mostra um link explícito para o checkout, caso o redirect automático
+  seja bloqueado.
 - **Por que modal, e por que em arquivo separado**: a página isolada
   (`/inscricao`) tirava o visitante da landing no momento de maior intenção;
   o modal mantém a decisão na mesma tela, com o mesmo padrão visual do modal
@@ -76,10 +86,20 @@ mantém o app de produção intocado enquanto essa área de vendas evolui.
   equipe é o único registro dele.
 
 - **Muro 1 (Pagamento) — estrutura pronta, gateway ainda não escolhido:**
-  - `lib/checkout.ts` — `createCheckoutLink(lead)`: hoje devolve um link
-    local (`/checkout`, placeholder). O corpo tem os dois TODOs comentados
-    (chamada real ao Asaas e ao Pagar.me) prontos pra descomentar assim que
-    a chave existir — a assinatura da função não muda.
+  - `lib/checkout.ts` — `createCheckoutLink(lead)`: hoje devolve o link local
+    (`/checkout`), o mesmo destino do redirect do modal. O corpo tem os dois
+    TODOs comentados (chamada real ao Asaas e ao Pagar.me) prontos pra
+    descomentar assim que a chave existir — a assinatura da função não muda.
+  - `app/checkout` — a **interface** do checkout, construída antes do gateway:
+    resumo do pedido (plano, preço, "7 dias grátis, cancele quando quiser"),
+    formulário de cartão com validação real (Luhn, validade, CVV por bandeira)
+    e selos de segurança. **Não cobra ninguém**: o envio abre um aviso dizendo
+    que a cobrança está sendo configurada e que o consultor conclui pelo
+    WhatsApp. Quando a chave existir, o que muda é o `onSubmit` do formulário.
+  - `lib/plans.ts` — nome, preço e itens dos dois planos em um lugar só, que é
+    o que `lib/checkout.ts` e a página de checkout leem. Os textos em
+    `public/` (bundle e modal) seguem com a cópia própria: são estáticos,
+    fora da árvore de módulos do Next.
   - `app/api/webhooks/payment` — o ouvinte do gateway. **Verifica a
     assinatura antes de confiar em qualquer coisa do corpo**: Asaas manda um
     token estático (`asaas-access-token`, comparação timing-safe) e

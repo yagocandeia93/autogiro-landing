@@ -29,7 +29,21 @@
  *    dentro, um re-render o apagaria no meio do preenchimento.
  *
  * O submit bate em /api/signup-intent, que valida Turnstile + rate limit e
- * avisa a equipe (Resend). Não existe etapa nenhuma depois do envio.
+ * avisa a equipe (Resend). Depois do 200 OK os dois funis se separam:
+ *
+ *   demonstracao → painel de sucesso e a janela fecha sozinha; quem pediu
+ *                  demonstração não tem para onde ir, o consultor é que liga.
+ *   plano        → painel de sucesso por um instante e REDIRECIONA para
+ *                  /checkout?plano=BASICO|PRO, levando o teste de 7 dias até
+ *                  a tela de pagamento em vez de terminar a jornada aqui.
+ *
+ * O redirect usa `window.location.assign` (e não next/navigation): este
+ * arquivo é JS solto servido de public/, fora da árvore de módulos do Next —
+ * não existe router para importar aqui. O timer do redirect é PROPOSITALMENTE
+ * separado do de auto-close: fechar a janela (Escape, clique fora) não pode
+ * cancelar a navegação de quem já enviou os dados. E o painel de sucesso
+ * ainda traz um link explícito para o checkout, para o caso de o redirect
+ * automático ser bloqueado ou demorar.
  */
 (function () {
   "use strict";
@@ -38,6 +52,11 @@
   var CONFIG_ENDPOINT = "/api/turnstile-config";
   var TURNSTILE_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js";
   var AUTO_CLOSE_MS = 5000;
+  // Tempo que a confirmação fica na tela antes de o checkout assumir. Curto
+  // o bastante para não parecer travado, longo o bastante para a pessoa ler
+  // que deu certo antes de a página trocar.
+  var REDIRECT_MS = 1400;
+  var CHECKOUT_PATH = "/checkout";
 
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -48,10 +67,12 @@
    * Textos por funil. `plano` recebe o plano escolhido no botão, então o
    * conteúdo é função dele; `demonstracao` ignora o argumento.
    *
-   * Nenhuma das duas variantes promete cobrança nesta etapa: o gateway de
-   * pagamento (Muro 1) ainda não existe, e quem clica em "Assinar agora"
-   * termina com um consultor concluindo a ativação. Prometer um checkout que
-   * não existe seria pior do que o passo a mais que acabou de ser removido.
+   * Nenhuma das duas variantes promete COBRANÇA nesta etapa — o gateway de
+   * pagamento (Muro 1) ainda não está ligado. O que a variante `plano` promete
+   * agora é o teste de 7 dias e a tela de checkout logo em seguida, que é o
+   * que de fato acontece: /checkout existe, mostra o resumo do plano e o
+   * formulário de cartão, e avisa em bom português que a cobrança ainda está
+   * sendo configurada. Nada aqui promete um pagamento que o site não conclui.
    */
   var VARIANTS = {
     demonstracao: {
@@ -82,29 +103,31 @@
     },
     plano: {
       eyebrow: function (plan) {
-        return "Plano " + PLAN_LABEL[plan] + " · " + PLAN_PRICE[plan] + "/mês";
+        return "Plano " + PLAN_LABEL[plan] + " · 7 dias grátis";
       },
       title: function () {
-        return "Falta só um passo para ativar sua loja.";
+        return "Comece seu teste de 7 dias.";
       },
       sub: function (plan) {
         return (
-          "Deixe seus dados e um consultor conclui a ativação do plano " +
+          "Deixe seus dados para liberar seu teste de 7 dias no plano " +
           PLAN_LABEL[plan] +
-          " com você em até 1 dia útil — implantação acompanhada, " +
+          " (" +
+          PLAN_PRICE[plan] +
+          "/mês depois do teste) — implantação acompanhada, " +
           "sem taxa de setup e sem fidelidade."
         );
       },
-      submitLabel: function (plan) {
-        return "Quero o plano " + PLAN_LABEL[plan];
+      submitLabel: function () {
+        return "Começar 7 dias grátis";
       },
       legal: function () {
-        return "Nenhuma cobrança acontece agora: a assinatura é fechada com o consultor.";
+        return "Sem compromisso. Só cobramos após o período de teste.";
       },
       okText: function (plan) {
         return (
-          "Um consultor entra em contato pelo WhatsApp em até 1 dia útil " +
-          "para ativar sua loja no plano " +
+          "Estamos abrindo o checkout para liberar seus 7 dias grátis no " +
+          "plano " +
           PLAN_LABEL[plan] +
           "."
         );
@@ -119,6 +142,7 @@
   var status = "form"; // 'form' | 'submitting' | 'success'
   var lastTrigger = null; // devolve o foco ao fechar
   var autoCloseTimer = null;
+  var redirectTimer = null; // separado do auto-close: close() não o cancela
   var variant = "demonstracao"; // funil da abertura atual
   var plan = null; // 'BASICO' | 'PRO' — só no funil de plano
 
@@ -193,6 +217,9 @@
       ".agm-ok-badge{width:46px;height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;border-radius:50%;background:rgba(245,165,36,.14);border:1px solid rgba(245,165,36,.45);color:#f5a524;font-size:22px;line-height:1}",
       ".agm-ok-title{margin:0 0 8px;font-size:18px;font-weight:700}",
       ".agm-ok-text{margin:0 0 6px;font-size:14px;line-height:1.6;color:#94a1b5;max-width:34ch}",
+      ".agm-ok-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding:12px 20px;border-radius:10px;background:#f5a524;color:#1b1305;font-size:14.5px;font-weight:600;text-decoration:none;transition:background .2s}",
+      ".agm-ok-link[hidden]{display:none}",
+      ".agm-ok-link:hover{background:#ffb640}",
       ".agm-ok-hint{margin:14px 0 0;font-size:12px;color:#6b7889}",
       "@media (max-width:520px){.agm-dialog{padding:22px 18px;border-radius:12px}.agm-title{font-size:18.5px}}",
       "@media (prefers-reduced-motion:reduce){.agm-overlay,.agm-dialog{transition:none}.agm-spin{animation-duration:1.4s}}",
@@ -253,6 +280,7 @@
       '<div class="agm-ok-badge" aria-hidden="true">&#10003;</div>' +
       '<h2 class="agm-ok-title"></h2>' +
       '<p class="agm-ok-text"></p>' +
+      '<a class="agm-ok-link" href="#" hidden></a>' +
       '<p class="agm-ok-hint"></p>' +
       "</div>" +
       "</div>";
@@ -270,6 +298,7 @@
     els.turnstileBox = root.querySelector(".agm-turnstile");
     els.okTitle = root.querySelector(".agm-ok-title");
     els.okText = root.querySelector(".agm-ok-text");
+    els.okLink = root.querySelector(".agm-ok-link");
     els.okHint = root.querySelector(".agm-ok-hint");
     els.inputs = {};
     els.errors = {};
@@ -518,7 +547,7 @@
         resetTurnstile();
 
         if (out.res.ok && out.data && out.data.ok) {
-          succeed(v.nome);
+          succeed(v);
           return;
         }
         setStatus("form");
@@ -536,16 +565,47 @@
       });
   }
 
-  function succeed(nome) {
-    setStatus("success");
-    var primeiro = nome.split(/\s+/)[0];
+  /**
+   * Rota do checkout com o plano escolhido. O `plano` é o que a página usa
+   * para montar o resumo do pedido; o `email` viaja junto porque é a chave
+   * com que lib/leadStore guarda o lead no Redis — quando o gateway entrar,
+   * é por ele que o webhook reencontra quem pagou (ver lib/checkout.ts).
+   */
+  function checkoutUrl(v) {
+    var params = new URLSearchParams({ plano: plan, email: v.email });
+    return CHECKOUT_PATH + "?" + params.toString();
+  }
 
-    els.okTitle.textContent = "Pedido recebido, " + primeiro + "!";
+  function succeed(v) {
+    setStatus("success");
+    var primeiro = v.nome.split(/\s+/)[0];
     els.okText.textContent = copy("okText");
-    els.okHint.textContent = "Esta janela fecha sozinha em instantes.";
 
     els.panelForm.hidden = true;
     els.panelOk.hidden = false;
+
+    if (variant === "plano") {
+      var url = checkoutUrl(v);
+
+      els.okTitle.textContent = "Tudo certo, " + primeiro + "!";
+      els.okLink.href = url;
+      els.okLink.textContent = "Ir para o checkout agora";
+      els.okLink.hidden = false;
+      els.okHint.textContent = "Levando você para o checkout...";
+      els.okLink.focus();
+
+      // Timer PRÓPRIO, que close() não limpa: quem já enviou os dados vai
+      // para o checkout mesmo que feche a janela nesse meio segundo. O link
+      // acima cobre o caso de o redirect automático não acontecer.
+      redirectTimer = setTimeout(function () {
+        window.location.assign(url);
+      }, REDIRECT_MS);
+      return;
+    }
+
+    els.okTitle.textContent = "Pedido recebido, " + primeiro + "!";
+    els.okLink.hidden = true;
+    els.okHint.textContent = "Esta janela fecha sozinha em instantes.";
     els.dialog.querySelector(".agm-close").focus();
 
     autoCloseTimer = setTimeout(close, AUTO_CLOSE_MS);
@@ -627,6 +687,9 @@
       setFieldError(f.name, "");
     });
     showFormError("");
+    clearTimeout(redirectTimer);
+    redirectTimer = null;
+    els.okLink.hidden = true;
     els.panelOk.hidden = true;
     els.panelForm.hidden = false;
     status = "form";

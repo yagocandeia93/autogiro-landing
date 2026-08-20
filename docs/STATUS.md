@@ -15,7 +15,7 @@ Dos 6 gargalos apontados na análise original, **4 foram resolvidos**, 1 foi par
 |---|---|---|
 | 1 | CTA principal quebrado (`setTimeout` falso) | ✅ Resolvido |
 | 2 | Nenhuma notificação de novo lead | ✅ Resolvido |
-| 3 | Funil de pagamento incompleto | ❌ Aberto — `/checkout` segue placeholder |
+| 3 | Funil de pagamento incompleto | ❌ Aberto — UI de `/checkout` pronta (20/08), gateway ainda sem chave |
 | 4 | Prova social ausente ou fictícia | ⚠️ Parcial — a fictícia foi removida; não há prova social real |
 | 5 | SEO estruturalmente comprometido | ✅ Resolvido (title, description, OG, favicon, canonical) |
 | 6 | Formulário duplicado e ambíguo | ✅ Resolvido — o decorativo deixou de existir |
@@ -102,9 +102,11 @@ Menu reordenado para seguir a ordem real da página: Calculadora / Estoque / CRM
 | Caminho | Gatilho | Fluxo |
 |---|---|---|
 | Demonstração | 4 CTAs (header, hero, calculadora, footer), `data-ag-demo` | Modal → `POST /api/signup-intent` com `origem=demonstracao` → e-mail para a equipe |
-| Assinatura | "Assinar agora" / "Começar agora", `data-ag-signup="BASICO\|PRO"` | **Mesmo modal** → `POST /api/signup-intent` com `origem=plano` + `plan` → lead no Redis + e-mail para a equipe → consultor fecha a assinatura |
+| Assinatura | "Testar 7 dias grátis" / "Começar 7 dias grátis", `data-ag-signup="BASICO\|PRO"` | **Mesmo modal** → `POST /api/signup-intent` com `origem=plano` + `plan` → lead no Redis + e-mail para a equipe → **redirect para `/checkout?plano=…`** → consultor fecha a assinatura |
 
 O caminho de assinatura passava por `/inscricao?plano=…` e por um código de 6 dígitos por e-mail antes de chegar a `/checkout` *(placeholder)*. Os dois passos saíram em 18/08 — a cobrança segue dependendo do gateway (item 1 da seção 6), mas agora nada mais separa o clique no plano do lead chegando à equipe.
+
+*(20/08: o modal deixou de ser o fim da linha no caminho de assinatura. Depois do 200 OK ele redireciona para `/checkout?plano=BASICO|PRO`, que agora é uma tela de verdade — resumo do pedido, formulário de cartão e selos de segurança — em vez do cartão de aviso que existia ali. Continua sem cobrar: o envio abre um aviso dizendo que a cobrança está sendo configurada e que o consultor conclui pelo WhatsApp. Junto veio o gatilho de 7 dias grátis nos botões de plano, na legenda abaixo deles e no texto do modal.)*
 
 ---
 
@@ -179,7 +181,7 @@ Isso prova as duas coisas que não eram verificáveis por fora: que a `TURNSTILE
 
 ### Prioridade alta — destrava receita
 
-1. **Fechar o gateway de pagamento.** `/checkout` é placeholder ("a cobrança ainda está sendo configurada"). Nenhuma assinatura fecha pelo site: o caminho até a receita ainda depende de passo manual. A estrutura está pronta em `lib/checkout.ts` e `lib/webhookSignature.ts` (Asaas ou Pagar.me), esperando chave de API.
+1. **Fechar o gateway de pagamento.** `/checkout` já é a tela completa (resumo do pedido, formulário de cartão, selos), mas **não cobra**: o envio só abre o aviso de que a cobrança está sendo configurada. Nenhuma assinatura fecha pelo site — o caminho até a receita ainda depende de passo manual. A estrutura está pronta em `lib/checkout.ts` e `lib/webhookSignature.ts` (Asaas ou Pagar.me), esperando chave de API; do lado do front, o que muda é o `onSubmit` de `components/checkout/PaymentForm.tsx`.
 2. **Analytics e pixel de conversão.** Não há GA4, Meta Pixel ou similar. Acabamos de ligar dois funis e **não há como medir a conversão de nenhum dos dois** — nem taxa de abertura do modal, nem abandono por campo. Isso deveria vir antes de qualquer investimento em tráfego pago.
 3. **Prova social real.** A única que existia era a faixa fictícia, removida. Um depoimento bem contado, um print de resultado ou um logo de cliente supera quatro métricas inventadas. Hoje a página não tem nenhum.
 
@@ -240,7 +242,7 @@ Sprint de conversão (branch `claude/subscription-funnel-refactor-rpiawy`). Não
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | widget na landing (via `/api/turnstile-config`) | widget não renderiza → **400** por falta de token |
 | `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | aviso de lead novo (único entregável do funil) | **500**; sem o aviso, erro para o visitante nos dois fluxos |
 | `LEAD_NOTIFICATION_EMAIL` | caixa que recebe o aviso | usa `yagocandeia93@gmail.com` |
-| `PAYMENT_GATEWAY` + chaves | Muro 1 | `/checkout` segue placeholder |
+| `PAYMENT_GATEWAY` + chaves | Muro 1 | `/checkout` mostra a tela, mas nenhuma cobrança acontece |
 
 Todas documentadas em `.env.example`.
 
