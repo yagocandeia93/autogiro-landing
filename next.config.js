@@ -19,6 +19,20 @@ const nextConfig = {
     return [
       { source: "/inscricao", destination: "/#planos", permanent: true },
       { source: "/cadastro", destination: "/#planos", permanent: true },
+
+      // /login e /entrar não existem como página aqui de propósito: um
+      // formulário de login na Vercel seria uma fachada — a autenticação de
+      // verdade mora no app do Railway. Quem digita esses caminhos por
+      // instinto é cliente, então mandamos direto para lá.
+      //
+      // 307 (permanent: false) e não 301: o 301 fica gravado no navegador do
+      // usuário para sempre, e o caminho de login do app é decisão do outro
+      // repositório. Se ele mudar, o 307 nos deixa corrigir; o 301 não.
+      //
+      // URL repetida de lib/app.ts — este arquivo é CommonJS e roda antes do
+      // TypeScript, então não dá para importar de lá.
+      { source: "/login", destination: "https://app.autogirodms.com.br/login", permanent: false },
+      { source: "/entrar", destination: "https://app.autogirodms.com.br/login", permanent: false },
     ];
   },
 };
