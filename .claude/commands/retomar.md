@@ -94,6 +94,35 @@ invisível; se ressuscitar esse padrão em algum lugar, o sintoma é esse.
    pagamento em lugar nenhum, e isso é intencional — não ligue gateway sem
    pedido explícito.
 
+## A porta de quem já é cliente
+
+Separada do funil acima, e de propósito: o botão **"Entrar"** no Header aponta
+para `https://app.autogirodms.com.br/login` (não para a raiz — a raiz do app
+responde 307 para `/login`), e `/login` e `/entrar` são **redirect 307** para
+o mesmo lugar, em `next.config.js`. **Não existe tela de login neste
+repositório** e não deve passar a existir: a autenticação mora no app do
+Railway. Os redirects antigos (`/inscricao`, `/cadastro`) seguem 308 porque
+apontam para dentro da própria landing; os de login são 307 porque o caminho
+lá do outro lado é decisão do outro repositório.
+
+`lib/app.ts` (`APP_LOGIN_URL`) é a fonte do endereço do lado TypeScript, com
+uma cópia literal em `next.config.js` — que é CommonJS e roda antes do
+TypeScript, então não importa de lá. Os dois mudam juntos.
+
+No cabeçalho a hierarquia é **fantasma < contorno < âmbar sólido**: "Entrar"
+não pode competir com "Agendar demonstração". O agrupamento é por intenção —
+`Entrar → (gap 22) → [WhatsApp → (gap 12) → Agendar demonstração]`, os dois
+últimos num contêiner próprio. Os 22px compensam os 12px de padding interno
+do fantasma, que comem parte da separação visual.
+
+Abaixo de **520px** o wordmark "AutoGiro DMS" some (`.hideBelow520`) e fica só
+a imagem da marca — sem isso o botão âmbar passava por cima dele em 360px, o
+que já acontecia antes do "Entrar" existir. Por isso o `alt` do `<Image>`
+carrega o nome e o texto visível é `aria-hidden`: a marca precisa ter nome
+acessível numa largura em que o texto não é renderizado.
+
+## Planos
+
 `lib/plans.ts` é a fonte única de nome, preço e itens dos planos do lado
 TypeScript. Os textos em `public/` seguem com cópia própria por serem estáticos,
 fora da árvore de módulos do Next.
@@ -122,6 +151,23 @@ total; foi assim que os degraus de alinhamento e a logo preta apareceram.
 Confira sempre 390px e 360px de largura, e um `pageerror`/`console.error` zerado
 (pega divergência de hidratação).
 
+Três armadilhas do ambiente, todas já custaram tempo:
+
+- **Não rode `npm run build` com o dev server no ar.** O build sobrescreve o
+  `.next` que o dev está servindo, e a partir daí a página devolve 500 com um
+  `ENOENT` em `app/page.js`. Parece bug do seu código e não é. Mate o dev,
+  apague o `.next`, e só então builde.
+- **O Chromium daqui não alcança nada externo** — `ERR_CONNECTION_RESET` até em
+  `example.com`, com ou sem proxy; é restrição do sandbox ao processo do
+  browser, não do proxy. Validação em navegador só funciona contra o
+  `localhost:3000`. Para conferir um deploy, vá de `curl` (headers, status,
+  HTML servido).
+- **O preview da Vercel está atrás do Deployment Protection.** Anônimo, todo
+  caminho devolve 302 para `vercel.com/sso-api` antes de chegar no app — o que
+  faz um redirect legítimo parecer quebrado. Use
+  `mcp__Vercel__get_access_to_vercel_url` para pegar um link de
+  compartilhamento temporário e mande o cookie no `curl`.
+
 ## Convenções
 
 - **Tudo em português**: comentários, mensagens de commit, corpo de PR.
@@ -135,12 +181,14 @@ Confira sempre 390px e 360px de largura, e um `pageerror`/`console.error` zerado
 
 ## Pontos em aberto
 
-- **A ponte com o app principal não existe.** Depois que um pagamento for
-  confirmado, algo precisa criar a loja de verdade (organização + admin +
-  `CompanySettings`) no banco do AutoGiro, que roda no Railway. Hoje isso é
-  `npm run onboard:loja`, rodado à mão. Virar isso num endpoint interno é
-  decisão de RBAC e precisa de `/plan` próprio **no outro repositório** antes de
-  sair do papel — `triggerProvisioning()` no webhook só imprime um log.
+- **A ponte de provisionamento não existe** (a de *acesso* sim, desde 21/08 —
+  não confunda as duas). Depois que um pagamento for confirmado, algo precisa
+  criar a loja de verdade (organização + admin + `CompanySettings`) no banco do
+  AutoGiro, que roda no Railway. Hoje isso é `npm run onboard:loja`, rodado à
+  mão. Virar isso num endpoint interno é decisão de RBAC e precisa de `/plan`
+  próprio **no outro repositório** antes de sair do papel —
+  `triggerProvisioning()` no webhook só imprime um log. O botão "Entrar"
+  resolve o login de quem já tem loja; ele não cria loja nenhuma.
 - **O resumo do checkout deixou de ser `position: sticky`** para as duas colunas
   terminarem na mesma linha. É reversível numa linha de
   `components/checkout/checkout.module.css` se a rolagem incomodar mais que o

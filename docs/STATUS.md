@@ -2,7 +2,7 @@
 
 **Repositório:** `yagocandeia93/autogiro-landing`
 **Produção:** `autogirodms.com.br` (Vercel) — separado do app principal `app.autogirodms.com.br` (Railway)
-**Data:** 16 de agosto de 2026 — *atualizado em 18 de agosto de 2026 (seções 3, 4.2, 6 e 7)*
+**Data:** 16 de agosto de 2026 — *atualizado em 21 de agosto de 2026 (seções 3, 4.2, 4.5, 6 e 7)*
 **Referência:** atualiza o documento *Análise Técnica e Comercial — Landing Page AutoGiro DMS*
 
 ---
@@ -26,6 +26,8 @@ Dos 6 gargalos apontados na análise original, **4 foram resolvidos**, 1 foi par
 **Sprint seguinte (17/08), PR #3 (`a4d70c4`):** fechou os itens **4 a 9** da seção 6 — segundo aviso de lead em `/api/verify-otp`, TTL do `verified-lead` de 30 min para 24 h, "Nome da loja" obrigatório também em `/inscricao`, `robots.txt` e `sitemap.xml`, `npm run lint` funcionando e CI em Pull Requests. Detalhe de cada um em [Resolvidos](#-resolvidos--17-de-agosto-de-2026).
 
 **Sprint seguinte (17/08, mesmo dia), branch `claude/autogiro-cleanup-seo-backend-mwgm6p`, aguardando revisão/merge:** fechou os itens **10 a 12** — Cabeçalho e Hero migraram para componentes React reais e SSR'd, fontes saíram do base64 embutido para arquivos `.woff2` cacheáveis. Detalhe de cada um, incluindo o porquê de a Calculadora e o restante da página **não** terem seguido junto, em [Resolvidos](#-resolvidos--17-de-agosto-de-2026-2).
+
+**Sprint de 21/08, PR #13 (`d0ad529`), mergeada:** a landing ganhou a **ponte de acesso** ao app do Railway — botão "Entrar" no Header e `/login` / `/entrar` como redirect 307. Não confundir com a ponte de *provisionamento*, que continua aberta (ver item 1 da seção 6). Detalhe em [Resolvidos](#-resolvidos--21-de-agosto-de-2026).
 
 **Sprint de 18/08, branch `claude/subscription-funnel-refactor-rpiawy`:** mudança de estratégia de conversão, não correção de bug. O funil de assinatura deixou de ter página própria e verificação por código de e-mail: **os dois funis agora terminam no mesmo modal, sobre a landing, com o Turnstile como única barreira**. Detalhe em [Resolvidos](#-resolvidos--18-de-agosto-de-2026).
 
@@ -108,6 +110,8 @@ O caminho de assinatura passava por `/inscricao?plano=…` e por um código de 6
 
 *(20/08: o modal deixou de ser o fim da linha no caminho de assinatura. Depois do 200 OK ele redireciona para `/checkout?plano=BASICO|PRO`, que agora é uma tela de verdade — resumo do pedido, formulário de cartão e selos de segurança — em vez do cartão de aviso que existia ali. Continua sem cobrar: o envio abre um aviso dizendo que a cobrança está sendo configurada e que o consultor conclui pelo WhatsApp. Junto veio o gatilho de 7 dias grátis nos botões de plano, na legenda abaixo deles e no texto do modal.)*
 
+*(21/08: a landing ganhou a **ponte de acesso para quem já é cliente**. O Header passou a ter um botão "Entrar" apontando para `https://app.autogirodms.com.br/login`, e `/login` e `/entrar` viraram redirect 307 para o mesmo endereço. Isso não é um terceiro caminho de conversão — é a porta de quem já pagou, e o desenho reflete isso: o botão é fantasma, um degrau abaixo do contorno do WhatsApp e dois abaixo do âmbar da demonstração. A ordem do cabeçalho ficou `Entrar → (22px) → WhatsApp → (12px) → Agendar demonstração`, com o espaçamento maior separando quem já é cliente de quem ainda não é. Detalhe da decisão em 4.5.)*
+
 *(20/08, mesma tela, segunda passada: a área de pagamento virou **abas — Cartão de crédito (padrão) e Pix**. A do Pix é ilustrativa de propósito (QR desfocado + "o QR Code do Pix será gerado na próxima etapa" + botão "Gerar Pix"): o payload do Pix é assinado pelo gateway, então um QR nítido aqui seria um código que ninguém consegue pagar. Os dois caminhos terminam no mesmo aviso. Junto saiu um bug de marca: a logo do cabeçalho do checkout vinha por `<img src="/icons/logo-mark.svg">`, e como o arquivo é um traçado `stroke="currentColor"`, dentro de um `<img>` ela resolvia para o preto padrão do SVG — invisível sobre o `#0a0e14`. Agora o cabeçalho usa a marca oficial em `public/Logo.png`, por `next/image`. O arquivo enviado (`Logo.png` na raiz, 1254×1254, 947 kB, sem canal alfa) tinha dois problemas: só `public/` é servido pelo Next, então `/Logo.png` na raiz dava 404; e o fundo `#030917` estava embutido na imagem, ou seja, apareceria como um quadrado azulado sobre o `#0a0e14` da página. A versão em `public/` é a mesma marca com o fundo recortado para transparência pela luminância, aparada e reduzida a 256×256 — 15 kB, e o `next/image` ainda serve WebP menor que isso no tamanho pedido. O cabeçalho e o rodapé da landing vieram junto: os dois pintavam `logo-mark.svg` (o `rotate-3d` do Lucide) como máscara sobre o âmbar, um traço visivelmente mais fino que a marca de verdade — agora as três telas usam o mesmo arquivo. `public/icons/logo-mark.svg` ficou sem uso.)*
 
 ---
@@ -148,6 +152,16 @@ html,body{height:100%;margin:0}#dc-root,#dc-root>.sc-host{height:100%}
 A correção mora em `app/globals.css`: `:root, :root > body { height: auto; }`. Vence a folha injetada por **especificidade** (`:root` é 0,1,0 contra 0,0,1 de `html`), não por ordem de carregamento — o que importa aqui, porque a folha do runtime entra depois da do Next.
 
 Ao depurar qualquer estilo global que "não vem de lugar nenhum", vá pelo CDP em vez do grep: `CSS.getMatchedStylesForNode` seguido de `CSS.getStyleSheetText` mostra a folha real e sua origem. `document.styleSheets` não basta — parte do CSS do bundle está fora do alcance dele.
+
+### 4.5 A ponte de acesso é redirect, não página
+
+Nenhuma tela de login existe neste repositório, e isso é deliberado: a autenticação mora no app do Railway, em outro repositório e outro banco. Um formulário de login servido pela Vercel seria uma fachada — ou pior, uma segunda superfície de credencial para manter.
+
+`/login` e `/entrar` são **307** (`next.config.js`), não 301. Um 301 fica gravado no navegador do usuário para sempre; o caminho de login do app é decisão do outro repositório, e se ele mudar o 307 nos deixa corrigir. Os redirects antigos (`/inscricao`, `/cadastro` → `/#planos`) continuam 308 porque apontam para dentro da própria landing, onde nós mandamos.
+
+A URL do app aparece em dois lugares — `lib/app.ts` (lado TypeScript) e `next.config.js`. Não é descuido: `next.config.js` é CommonJS e roda antes do TypeScript, então não há como importar de lá. Se o endereço mudar, os dois mudam juntos, e o comentário em cada um diz isso.
+
+**Efeito colateral que valeu a pena:** para caber "Entrar" no cabeçalho foi preciso corrigir um defeito que já existia. Em 360px o botão âmbar passava por cima do wordmark "AutoGiro DMS" — o `minWidth: 0` deixava o bloco da marca encolher, e o texto com `white-space: nowrap` transbordava por baixo do botão. Abaixo de **520px** o wordmark agora some (`.hideBelow520`) e fica só a marca em imagem. O nome passou para o `alt` do `<Image>` e o texto visível virou `aria-hidden`, então o leitor de tela anuncia "AutoGiro DMS" exatamente uma vez em qualquer largura — antes o `alt` era vazio justamente para evitar a duplicata, o que deixaria a marca sem nome acessível no mobile.
 
 ---
 
@@ -198,6 +212,8 @@ Isso prova as duas coisas que não eram verificáveis por fora: que a `TURNSTILE
 ### Prioridade alta — destrava receita
 
 1. **Fechar o gateway de pagamento.** `/checkout` já é a tela completa (resumo do pedido, formulário de cartão, selos), mas **não cobra**: o envio só abre o aviso de que a cobrança está sendo configurada. Nenhuma assinatura fecha pelo site — o caminho até a receita ainda depende de passo manual. A estrutura está pronta em `lib/checkout.ts` e `lib/webhookSignature.ts` (Asaas ou Pagar.me), esperando chave de API; do lado do front, o que muda é o `onSubmit` de `components/checkout/PaymentForm.tsx`.
+
+   **E cobrar não basta.** Depois do pagamento confirmado, alguém precisa criar a loja de verdade no banco do AutoGiro — organização, usuário admin e `CompanySettings`. Hoje isso é `npm run onboard:loja`, rodado à mão, e `triggerProvisioning()` no webhook só imprime um log. Transformar isso em endpoint interno é decisão de RBAC e precisa de planejamento **no repositório do app**, não aqui. A ponte de *acesso* entregue em 21/08 (seção 4.5) resolve o login de quem já tem loja; ela não cria loja nenhuma.
 2. **Analytics e pixel de conversão.** Não há GA4, Meta Pixel ou similar. Acabamos de ligar dois funis e **não há como medir a conversão de nenhum dos dois** — nem taxa de abertura do modal, nem abandono por campo. Isso deveria vir antes de qualquer investimento em tráfego pago.
 3. **Prova social real.** A única que existia era a faixa fictícia, removida. Um depoimento bem contado, um print de resultado ou um logo de cliente supera quatro métricas inventadas. Hoje a página não tem nenhum.
 
@@ -244,6 +260,17 @@ Sprint de conversão (branch `claude/subscription-funnel-refactor-rpiawy`). Não
 - ✅ **Limpeza do que ficou órfão.** Saíram `app/inscricao`, `app/cadastro` (que só redirecionava para ela), `components/SignupForm.tsx`, `components/TurnstileWidget.tsx`, `components/landing/Pricing.tsx`, `lib/phoneMask.ts` e as regras de CSS que só existiam para eles. `/inscricao` e `/cadastro` viraram **redirects 308 para `/#planos`** (`next.config.js`): os caminhos ainda vivem em anúncios e no histórico de quem já visitou, e devolver 404 ali perderia justamente o lead que já vinha assinar. `sitemap.xml` perdeu a entrada de `/inscricao`.
 
 **Sobre o `Pricing.tsx` removido:** ele era a versão React dos cards de plano, extraída do bundle na sprint anterior (item 10), e o único lugar que a usava de verdade era `/inscricao`. Com a página fora, ele viraria uma segunda cópia da lista de benefícios, sem ninguém renderizando — exatamente o problema que o item 10 aponta. A seção de Planos que o visitante vê continua vindo do bundle, e agora é a única fonte dessa copy. Quando a migração do bundle avançar, o componente volta do histórico (`git show ea1b3b2:components/landing/Pricing.tsx`).
+
+### ✅ Resolvidos — 21 de agosto de 2026
+
+Sprint da ponte de acesso (PR #13, `d0ad529`). Como a de 18/08, não fecha item numerado da seção 6: é funcionalidade nova, decidida depois. Validada com `npm run lint` (0 erros), `npx tsc --noEmit` e `npm run build`, mais **106 asserções em Chromium real** contra o dev server em 1280/1100/900/640/520/480/390/360px — ordem exata dos três controles do cabeçalho, razão entre os dois espaçamentos, alinhamento de altura e de linha de base, ausência de overflow horizontal, hover, navegação do clique e status dos redirects, sem erro de console nem divergência de hidratação. Os redirects foram conferidos também no deploy de preview da Vercel, por dentro do SSO de proteção.
+
+- ✅ **Botão "Entrar" no Header.** Aponta para `https://app.autogirodms.com.br/login`, não para a raiz: a raiz do app responde 307 para `/login`, então apontar direto poupa um salto de rede. Sem `target="_blank"` — é o mesmo produto, não site de terceiros. O estilo é fantasma (`.loginLink`), com a mesma caixa do pill do WhatsApp (9px de padding + 1px de borda transparente = 38px), para os três controles fecharem na mesma linha de base.
+- ✅ **`/login` e `/entrar` como redirect 307.** Muita gente digita esses caminhos por instinto. Motivo do 307 e do porquê de não existir tela de login aqui: seção 4.5.
+- ✅ **Agrupamento por intenção no cabeçalho.** WhatsApp e "Agendar demonstração" passaram a viver num contêiner próprio com `gap: 12`, e o contêiner externo ficou com `gap: 22`, com "Entrar" na frente. O espaçamento é quem comunica a divisão — quem já é cliente de um lado, quem ainda não é do outro — sem precisar de divisória. Os 22px não são arbitrários: o botão fantasma tem 12px de padding interno, então parte da separação some visualmente dentro da caixa dele.
+- ✅ **Cabeçalho deixou de quebrar em 360px.** Defeito pré-existente, corrigido junto por necessidade. Ver 4.5.
+
+**Fonte única do endereço do app:** `lib/app.ts` (`APP_LOGIN_URL`), com a cópia obrigatória em `next.config.js` explicada em 4.5.
 
 ---
 
