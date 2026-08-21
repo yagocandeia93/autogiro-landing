@@ -1,6 +1,7 @@
 import Image from "next/image";
 import styles from "./landing.module.css";
 import { WA_LINK_CONSULTOR } from "@/lib/whatsapp";
+import { APP_LOGIN_URL } from "@/lib/app";
 
 const NAV_LINKS = [
   { href: "#calculadora", label: "Calculadora" },
@@ -44,17 +45,23 @@ export function Header() {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 34, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* alt vazio: o nome da marca vem escrito ao lado, e repeti-lo faria
-              o leitor de tela anunciar "AutoGiro DMS" duas vezes seguidas. */}
+          {/* O nome da marca escrito ao lado some abaixo de 520px (não cabe
+              junto dos dois botões), então o alt é quem carrega o nome em
+              qualquer largura — e o wordmark visível fica aria-hidden para o
+              leitor de tela não anunciar "AutoGiro DMS" duas vezes. */}
           <Image
             src="/Logo.png"
-            alt=""
+            alt="AutoGiro DMS"
             width={26}
             height={26}
             priority
             style={{ display: "block" }}
           />
-          <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+          <span
+            aria-hidden="true"
+            className={styles.hideBelow520}
+            style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}
+          >
             AutoGiro <span style={{ color: "#94a1b5", fontWeight: 500 }}>DMS</span>
           </span>
         </div>
@@ -92,6 +99,14 @@ export function Header() {
             }}
           />
           WhatsApp
+        </a>
+        {/* Ponte para o app no Railway (lib/app.ts): quem já é cliente entra,
+            quem ainda não é continua olhando para o botão âmbar. Por isso o
+            fantasma — a hierarquia visual é ghost < contorno (WhatsApp) <
+            âmbar sólido, e a conversão segue sendo a demonstração.
+            Sem target="_blank": é o mesmo produto, não um site de terceiros. */}
+        <a href={APP_LOGIN_URL} className={styles.loginLink}>
+          Entrar
         </a>
         <a href="#demo" data-ag-demo="" className={styles.ctaButton}>
           Agendar demonstração
