@@ -76,30 +76,12 @@ export function Header() {
           ))}
         </nav>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <a
-          href={WA_LINK_CONSULTOR}
-          target="_blank"
-          rel="noopener"
-          className={`${styles.waPill} ${styles.hideBelow1100}`}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              width: 15,
-              height: 15,
-              background: "currentColor",
-              display: "block",
-              WebkitMaskImage: "url(/icons/whatsapp.svg)",
-              maskImage: "url(/icons/whatsapp.svg)",
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-            }}
-          />
-          WhatsApp
-        </a>
+      {/* Duas intenções distintas, e o espaçamento é quem diz isso: "Entrar"
+          serve quem já é cliente, WhatsApp e demonstração servem quem ainda
+          não é. Daí o gap de 22px aqui contra os 12px de dentro do grupo de
+          conversão — os dois botões de lead lêem como um bloco só, e o
+          acesso fica visivelmente à parte, antes deles. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
         {/* Ponte para o app no Railway (lib/app.ts): quem já é cliente entra,
             quem ainda não é continua olhando para o botão âmbar. Por isso o
             fantasma — a hierarquia visual é ghost < contorno (WhatsApp) <
@@ -108,9 +90,34 @@ export function Header() {
         <a href={APP_LOGIN_URL} className={styles.loginLink}>
           Entrar
         </a>
-        <a href="#demo" data-ag-demo="" className={styles.ctaButton}>
-          Agendar demonstração
-        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <a
+            href={WA_LINK_CONSULTOR}
+            target="_blank"
+            rel="noopener"
+            className={`${styles.waPill} ${styles.hideBelow1100}`}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 15,
+                height: 15,
+                background: "currentColor",
+                display: "block",
+                WebkitMaskImage: "url(/icons/whatsapp.svg)",
+                maskImage: "url(/icons/whatsapp.svg)",
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+              }}
+            />
+            WhatsApp
+          </a>
+          <a href="#demo" data-ag-demo="" className={styles.ctaButton}>
+            Agendar demonstração
+          </a>
+        </div>
       </div>
     </header>
   );
